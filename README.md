@@ -46,7 +46,7 @@ flowchart LR
     H --> I[Power BI<br/>Dashboards & Analysis]
 ```
 
-Apache Airflow, Docker Compose, automated testing, and GitHub Actions are part of the V1 implementation roadmap and will be introduced after the underlying pipeline components are stable. They are not yet implemented.
+Apache Airflow, Docker Compose, and GitHub Actions are part of the V1 implementation roadmap and will be introduced after the underlying pipeline components are stable. They are not yet implemented; automated testing is introduced incrementally alongside implemented components.
 
 ## Modeling Approach
 
