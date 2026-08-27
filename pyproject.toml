@@ -7,7 +7,10 @@ name = "finflow"
 version = "0.1.0"
 description = "FinFlow data engineering project"
 requires-python = ">=3.12,<3.14"
-dependencies = ["python-dotenv>=1,<2"]
+dependencies = [
+    "python-dotenv>=1,<2",
+    "requests>=2.32,<3",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8,<9"]
