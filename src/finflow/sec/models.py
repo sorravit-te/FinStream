@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import date, datetime
+from decimal import Decimal
 
 
 @dataclass(frozen=True)
@@ -32,3 +33,33 @@ class SecSubmissions:
     cik: str
     company_name: str
     filings: tuple[SecFilingMetadata, ...]
+
+
+@dataclass(frozen=True)
+class SecFinancialFact:
+    """One source-aligned occurrence from an SEC Company Facts response."""
+
+    cik: str
+    taxonomy: str
+    concept: str
+    label: str
+    description: str | None
+    unit: str
+    value: Decimal
+    start_date: date | None
+    end_date: date
+    accession_number: str
+    fiscal_year: int | None
+    fiscal_period: str | None
+    form: str
+    filed_date: date
+    frame: str | None
+
+
+@dataclass(frozen=True)
+class SecCompanyFacts:
+    """Parsed source-aligned financial facts for one SEC company."""
+
+    cik: str
+    entity_name: str
+    facts: tuple[SecFinancialFact, ...]

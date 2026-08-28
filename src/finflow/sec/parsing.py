@@ -2,10 +2,16 @@
 
 import re
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 from finflow.sec.edgar import _normalize_cik
-from finflow.sec.models import SecFilingMetadata, SecSubmissions
+from finflow.sec.models import (
+    SecCompanyFacts,
+    SecFilingMetadata,
+    SecFinancialFact,
+    SecSubmissions,
+)
 
 
 _ACCESSION_PATTERN = re.compile(r"\d{10}-\d{2}-\d{6}\Z")
@@ -30,6 +36,10 @@ _RECENT_FIELDS = (
 
 class SecSubmissionsValidationError(ValueError):
     """Raised when an SEC submissions payload contains invalid metadata."""
+
+
+class SecCompanyFactsValidationError(ValueError):
+    """Raised when an SEC Company Facts payload contains invalid facts."""
 
 
 def _normalize_payload_cik(value: object, *, field_name: str) -> str:
@@ -224,4 +234,179 @@ def parse_submissions(
         cik=normalized_payload_cik,
         company_name=company_name.strip(),
         filings=tuple(filings),
+    )
+
+
+def _normalize_company_facts_cik(value: object, *, field_name: str) -> str:
+    try:
+        return _normalize_cik(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError) as exc:
+        raise SecCompanyFactsValidationError(f"{field_name} is invalid") from exc
+
+
+def _parse_company_fact_date(value: object, *, field_name: str) -> date:
+    if not isinstance(value, str) or not _DATE_PATTERN.fullmatch(value):
+        raise SecCompanyFactsValidationError(
+            f"{field_name} must use YYYY-MM-DD format"
+        )
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise SecCompanyFactsValidationError(
+            f"{field_name} is not a valid date"
+        ) from exc
+
+
+def _parse_fact_value(value: object) -> Decimal:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise SecCompanyFactsValidationError("val must be a JSON number")
+    parsed_value = Decimal(value) if isinstance(value, int) else Decimal(str(value))
+    if not parsed_value.is_finite():
+        raise SecCompanyFactsValidationError("val must be finite")
+    return parsed_value
+
+
+def _parse_company_accession_number(value: object) -> str:
+    if not isinstance(value, str) or not _ACCESSION_PATTERN.fullmatch(value):
+        raise SecCompanyFactsValidationError(
+            "accn must use XXXXXXXXXX-YY-ZZZZZZ format"
+        )
+    return value
+
+
+def _parse_fiscal_year(value: object) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise SecCompanyFactsValidationError("fy must be a positive integer")
+    return value
+
+
+def _parse_optional_fact_string(value: object, *, field_name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise SecCompanyFactsValidationError(f"{field_name} must be a string")
+    stripped_value = value.strip()
+    return stripped_value or None
+
+
+def _parse_fact_occurrence(
+    value: object,
+    *,
+    cik: str,
+    taxonomy: str,
+    concept: str,
+    label: str,
+    description: str | None,
+    unit: str,
+) -> SecFinancialFact:
+    if not isinstance(value, dict):
+        raise SecCompanyFactsValidationError("fact occurrence must be an object")
+
+    start_date = None
+    if "start" in value:
+        start_date = _parse_company_fact_date(value["start"], field_name="start")
+    end_date = _parse_company_fact_date(value.get("end"), field_name="end")
+    if start_date is not None and start_date > end_date:
+        raise SecCompanyFactsValidationError("start must not be after end")
+
+    form = value.get("form")
+    if not isinstance(form, str) or not form.strip():
+        raise SecCompanyFactsValidationError("form must not be blank")
+
+    return SecFinancialFact(
+        cik=cik,
+        taxonomy=taxonomy,
+        concept=concept,
+        label=label,
+        description=description,
+        unit=unit,
+        value=_parse_fact_value(value.get("val")),
+        start_date=start_date,
+        end_date=end_date,
+        accession_number=_parse_company_accession_number(value.get("accn")),
+        fiscal_year=_parse_fiscal_year(value.get("fy")),
+        fiscal_period=_parse_optional_fact_string(value.get("fp"), field_name="fp"),
+        form=form.strip(),
+        filed_date=_parse_company_fact_date(value.get("filed"), field_name="filed"),
+        frame=_parse_optional_fact_string(value.get("frame"), field_name="frame"),
+    )
+
+
+def parse_company_facts(
+    payload: dict[str, Any],
+    *,
+    expected_cik: str | int,
+) -> SecCompanyFacts:
+    """Flatten a validated SEC Company Facts payload in provider order."""
+    normalized_expected_cik = _normalize_company_facts_cik(
+        expected_cik,
+        field_name="expected_cik",
+    )
+    if not isinstance(payload, dict):
+        raise SecCompanyFactsValidationError("payload must be an object")
+
+    normalized_payload_cik = _normalize_company_facts_cik(
+        payload.get("cik"),
+        field_name="payload.cik",
+    )
+    if normalized_payload_cik != normalized_expected_cik:
+        raise SecCompanyFactsValidationError(
+            "payload CIK does not match expected CIK"
+        )
+
+    entity_name = payload.get("entityName")
+    if not isinstance(entity_name, str) or not entity_name.strip():
+        raise SecCompanyFactsValidationError("entityName must not be blank")
+    facts_value = payload.get("facts")
+    if not isinstance(facts_value, dict):
+        raise SecCompanyFactsValidationError("facts must be an object")
+
+    parsed_facts: list[SecFinancialFact] = []
+    for taxonomy, taxonomy_value in facts_value.items():
+        if not isinstance(taxonomy, str) or not taxonomy.strip():
+            raise SecCompanyFactsValidationError("taxonomy must not be blank")
+        if not isinstance(taxonomy_value, dict):
+            raise SecCompanyFactsValidationError("taxonomy value must be an object")
+
+        for concept, concept_value in taxonomy_value.items():
+            if not isinstance(concept, str) or not concept.strip():
+                raise SecCompanyFactsValidationError("concept must not be blank")
+            if not isinstance(concept_value, dict):
+                raise SecCompanyFactsValidationError("concept value must be an object")
+
+            label = concept_value.get("label")
+            if not isinstance(label, str) or not label.strip():
+                raise SecCompanyFactsValidationError("label must not be blank")
+            description_value = concept_value.get("description")
+            if not isinstance(description_value, str):
+                raise SecCompanyFactsValidationError("description must be a string")
+            description = description_value if description_value.strip() else None
+
+            units_value = concept_value.get("units")
+            if not isinstance(units_value, dict):
+                raise SecCompanyFactsValidationError("units must be an object")
+            for unit, occurrences in units_value.items():
+                if not isinstance(unit, str) or not unit.strip():
+                    raise SecCompanyFactsValidationError("unit must not be blank")
+                if not isinstance(occurrences, list):
+                    raise SecCompanyFactsValidationError("unit value must be a list")
+                for occurrence in occurrences:
+                    parsed_facts.append(
+                        _parse_fact_occurrence(
+                            occurrence,
+                            cik=normalized_payload_cik,
+                            taxonomy=taxonomy,
+                            concept=concept,
+                            label=label.strip(),
+                            description=description,
+                            unit=unit,
+                        )
+                    )
+
+    return SecCompanyFacts(
+        cik=normalized_payload_cik,
+        entity_name=entity_name.strip(),
+        facts=tuple(parsed_facts),
     )
