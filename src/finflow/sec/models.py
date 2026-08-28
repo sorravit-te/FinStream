@@ -63,3 +63,12 @@ class SecCompanyFacts:
     cik: str
     entity_name: str
     facts: tuple[SecFinancialFact, ...]
+
+
+@dataclass(frozen=True)
+class SecCompanySourceData:
+    """Successfully parsed SEC source data for one company."""
+
+    cik: str
+    submissions: SecSubmissions
+    company_facts: SecCompanyFacts
