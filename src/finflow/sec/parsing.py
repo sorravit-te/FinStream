@@ -297,7 +297,7 @@ def _parse_fact_occurrence(
     cik: str,
     taxonomy: str,
     concept: str,
-    label: str,
+    label: str | None,
     description: str | None,
     unit: str,
 ) -> SecFinancialFact:
@@ -376,13 +376,24 @@ def parse_company_facts(
             if not isinstance(concept_value, dict):
                 raise SecCompanyFactsValidationError("concept value must be an object")
 
-            label = concept_value.get("label")
-            if not isinstance(label, str) or not label.strip():
+            if "label" not in concept_value:
                 raise SecCompanyFactsValidationError("label must not be blank")
-            description_value = concept_value.get("description")
-            if not isinstance(description_value, str):
+            label_value = concept_value["label"]
+            if label_value is None:
+                label = None
+            elif isinstance(label_value, str):
+                label = label_value.strip() or None
+            else:
+                raise SecCompanyFactsValidationError("label must not be blank")
+            if "description" not in concept_value:
                 raise SecCompanyFactsValidationError("description must be a string")
-            description = description_value if description_value.strip() else None
+            description_value = concept_value["description"]
+            if description_value is None:
+                description = None
+            elif isinstance(description_value, str):
+                description = description_value if description_value.strip() else None
+            else:
+                raise SecCompanyFactsValidationError("description must be a string")
 
             units_value = concept_value.get("units")
             if not isinstance(units_value, dict):
@@ -399,7 +410,7 @@ def parse_company_facts(
                             cik=normalized_payload_cik,
                             taxonomy=taxonomy,
                             concept=concept,
-                            label=label.strip(),
+                            label=label,
                             description=description,
                             unit=unit,
                         )

@@ -42,7 +42,7 @@ class SecFinancialFact:
     cik: str
     taxonomy: str
     concept: str
-    label: str
+    label: str | None
     description: str | None
     unit: str
     value: Decimal

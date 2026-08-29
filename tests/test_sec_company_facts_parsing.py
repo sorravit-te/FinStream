@@ -210,17 +210,48 @@ def test_rejects_non_object_concept_value(concept_value: object) -> None:
         )
 
 
-@pytest.mark.parametrize("label", [None, "", "   ", 123])
-def test_rejects_missing_or_invalid_label(label: object) -> None:
+@pytest.mark.parametrize("label", [None, "", "   "])
+def test_maps_null_or_blank_label_to_none(label: object) -> None:
+    facts = {
+        "us-gaap": {
+            "SourceConcept": _concept(
+                _occurrence(),
+                label=label,
+            )
+        }
+    }
+
+    fact = parse_company_facts(_payload(facts), expected_cik=320193).facts[0]
+
+    assert fact.label is None
+
+
+def test_rejects_missing_label() -> None:
+    concept = _concept(_occurrence())
+    del concept["label"]
+
     with pytest.raises(SecCompanyFactsValidationError, match="label"):
         parse_company_facts(
-            _payload({"us-gaap": {"SourceConcept": _concept(label=label)}}),
+            _payload({"us-gaap": {"SourceConcept": concept}}),
             expected_cik=320193,
         )
 
 
-def test_maps_blank_description_to_none() -> None:
-    facts = {"us-gaap": {"SourceConcept": _concept(_occurrence(), description="  ")}}
+def test_rejects_non_string_label() -> None:
+    with pytest.raises(SecCompanyFactsValidationError, match="label"):
+        parse_company_facts(
+            _payload({"us-gaap": {"SourceConcept": _concept(label=123)}}),
+            expected_cik=320193,
+        )
+
+
+@pytest.mark.parametrize("description", [None, "  "])
+def test_maps_null_or_blank_description_to_none(description: object) -> None:
+    facts = {
+        "us-gaap": {
+            "SourceConcept": _concept(_occurrence(), description=description)
+        }
+    }
 
     fact = parse_company_facts(_payload(facts), expected_cik=320193).facts[0]
 
@@ -242,12 +273,22 @@ def test_preserves_nonblank_description_source_value() -> None:
     assert fact.description == "  Source description  "
 
 
-@pytest.mark.parametrize("description", [None, 123])
-def test_rejects_non_string_description(description: object) -> None:
+def test_rejects_missing_description() -> None:
+    concept = _concept(_occurrence())
+    del concept["description"]
+
+    with pytest.raises(SecCompanyFactsValidationError, match="description"):
+        parse_company_facts(
+            _payload({"us-gaap": {"SourceConcept": concept}}),
+            expected_cik=320193,
+        )
+
+
+def test_rejects_non_string_description() -> None:
     with pytest.raises(SecCompanyFactsValidationError, match="description"):
         parse_company_facts(
             _payload(
-                {"us-gaap": {"SourceConcept": _concept(description=description)}}
+                {"us-gaap": {"SourceConcept": _concept(description=123)}}
             ),
             expected_cik=320193,
         )
