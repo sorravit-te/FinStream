@@ -20,7 +20,7 @@ SEC EDGAR provides corporate filing metadata and structured XBRL financial facts
 
 ### Data Used
 
-FinStream initially uses filing history and metadata, structured XBRL company facts, and commonly useful reported values: revenue, net income, assets, liabilities, cash, stockholders' equity, and earnings per share. Final XBRL concept mappings are deferred to later source implementation and data-modeling work.
+FinStream initially uses recent filing metadata, structured XBRL company facts, and commonly useful reported values: revenue, net income, assets, liabilities, cash, stockholders' equity, and earnings per share. Final XBRL concept mappings are deferred to later source implementation and data-modeling work.
 
 ### Access and Format
 
