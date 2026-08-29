@@ -1,6 +1,6 @@
-# FinFlow
+# FinStream
 
-FinFlow is an end-to-end Data Engineering project that combines corporate financial, market, and macroeconomic data into analytics-ready datasets. It emphasizes reliable ingestion, source-data preservation, standardized modeling, data quality, incremental processing, and reproducible workflows. It is not a stock-prediction or trading project.
+FinStream is an end-to-end Data Engineering project that combines corporate financial, market, and macroeconomic data into analytics-ready datasets. It emphasizes reliable ingestion, source-data preservation, standardized modeling, data quality, incremental processing, and reproducible workflows. It is not a stock-prediction or trading project.
 
 ## Data Domains
 
@@ -80,6 +80,6 @@ Kafka, Apache Spark, real-time trading infrastructure, and mandatory cloud infra
 
 ## Implementation
 
-FinFlow is being implemented incrementally according to the roadmap. Documentation may describe agreed V1 components before implementation is complete; planned functionality is not currently available.
+FinStream is being implemented incrementally according to the roadmap. Documentation may describe agreed V1 components before implementation is complete; planned functionality is not currently available.
 
 Setup instructions, runnable examples, screenshots, and descriptions of implemented capabilities will be added as their corresponding implementation stages are completed.

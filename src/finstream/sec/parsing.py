@@ -5,8 +5,8 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
-from finflow.sec.edgar import _normalize_cik
-from finflow.sec.models import (
+from finstream.sec.edgar import _normalize_cik
+from finstream.sec.models import (
     SecCompanyFacts,
     SecFilingMetadata,
     SecFinancialFact,

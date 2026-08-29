@@ -2,7 +2,7 @@
 
 ## Architecture Overview
 
-FinFlow V1 is a scheduled batch data platform that combines corporate financial data from SEC EDGAR, daily market data from Twelve Data, and macroeconomic data from FRED. It favors simple, replaceable components and avoids infrastructure that is not justified by the initial workload.
+FinStream V1 is a scheduled batch data platform that combines corporate financial data from SEC EDGAR, daily market data from Twelve Data, and macroeconomic data from FRED. It favors simple, replaceable components and avoids infrastructure that is not justified by the initial workload.
 
 ## Data Flow
 
@@ -33,7 +33,7 @@ Bronze storage preserves source data before business transformation. It may reta
 
 ### PostgreSQL
 
-PostgreSQL is FinFlow V1's main analytical database. It holds standardized source data and transformed analytical datasets; database constraints may contribute to duplicate prevention and idempotency.
+PostgreSQL is FinStream V1's main analytical database. It holds standardized source data and transformed analytical datasets; database constraints may contribute to duplicate prevention and idempotency.
 
 ### dbt
 
@@ -57,7 +57,7 @@ Power BI consumes prepared Gold-layer datasets. Shared business logic should be 
 
 ## Processing Model
 
-FinFlow V1 uses scheduled batch processing. Since source publication frequencies differ, the platform does not assume every source has new data on every run. It supports detecting new or revised records, incremental processing where appropriate, safe reruns, and duplicate prevention without defining exact schedules.
+FinStream V1 uses scheduled batch processing. Since source publication frequencies differ, the platform does not assume every source has new data on every run. It supports detecting new or revised records, incremental processing where appropriate, safe reruns, and duplicate prevention without defining exact schedules.
 
 ## Separation of Responsibilities
 
@@ -78,6 +78,6 @@ The agreed V1 technologies are Python, JSON, Parquet, PostgreSQL, dbt, Apache Ai
 
 ## Architecture Boundaries
 
-This document owns FinFlow's system architecture, component responsibilities, data flow, and processing boundaries.
+This document owns FinStream's system architecture, component responsibilities, data flow, and processing boundaries.
 
 It does not own provider contracts, source characteristics, authentication, update behavior, or source limitations (`DATA_SOURCES.md`); table or model grains, relationships, facts, dimensions, or analytical structures (`DATA_MODEL.md`); implementation order or project phases (`ROADMAP.md`); or project scope, goals, requirements, system qualities, non-goals, and success criteria (`PROJECT_REQUIREMENTS.md`).

@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Protocol
 
-from finflow.market.models import DailyMarketPrice
+from finstream.market.models import DailyMarketPrice
 
 
 _RECORD_FIELDS = {

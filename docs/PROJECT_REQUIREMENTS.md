@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-FinFlow is an end-to-end batch Data Engineering project that combines corporate financial data from SEC EDGAR, daily market data from Twelve Data, and macroeconomic data from FRED. It is intended to produce reliable, analytics-ready datasets; it is not a stock prediction or trading project.
+FinStream is an end-to-end batch Data Engineering project that combines corporate financial data from SEC EDGAR, daily market data from Twelve Data, and macroeconomic data from FRED. It is intended to produce reliable, analytics-ready datasets; it is not a stock prediction or trading project.
 
 ## Goals
 

@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-from finflow.market.models import DailyMarketPrice
-from finflow.market.parsing import MarketDataValidationError, parse_daily_time_series
+from finstream.market.models import DailyMarketPrice
+from finstream.market.parsing import MarketDataValidationError, parse_daily_time_series
 
 
 def _row(**overrides: object) -> dict[str, object]:

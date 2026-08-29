@@ -2,7 +2,7 @@
 
 ## Overview
 
-FinFlow is implemented incrementally so each data layer and component is working and testable before orchestration and operational tooling are added. This roadmap defines implementation order; future ideas are not commitments unless later requirements justify them.
+FinStream is implemented incrementally so each data layer and component is working and testable before orchestration and operational tooling are added. This roadmap defines implementation order; future ideas are not commitments unless later requirements justify them.
 
 ## V1 Roadmap
 

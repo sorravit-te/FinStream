@@ -1,4 +1,4 @@
-"""Environment-driven configuration for FinFlow."""
+"""Environment-driven configuration for FinStream."""
 
 import os
 from collections.abc import Mapping
@@ -10,7 +10,7 @@ from dotenv import dotenv_values
 
 @dataclass(frozen=True)
 class Settings:
-    """Configuration values used by FinFlow data sources."""
+    """Configuration values used by FinStream data sources."""
 
     twelve_data_api_key: str | None
     fred_api_key: str | None

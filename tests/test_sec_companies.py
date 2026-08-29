@@ -2,7 +2,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from finflow.sec.companies import INITIAL_SEC_COMPANIES, SecCompanyConfig
+from finstream.sec.companies import INITIAL_SEC_COMPANIES, SecCompanyConfig
 
 
 _EXPECTED_COMPANIES = (

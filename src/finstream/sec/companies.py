@@ -1,4 +1,4 @@
-"""Configured SEC company identities for FinFlow V1."""
+"""Configured SEC company identities for FinStream V1."""
 
 from dataclasses import dataclass
 

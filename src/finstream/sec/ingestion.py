@@ -5,9 +5,9 @@ import time
 from collections.abc import Callable, Iterable
 from typing import Any
 
-from finflow.sec.edgar import SecEdgarClient, _normalize_cik
-from finflow.sec.models import SecCompanyFacts, SecCompanySourceData, SecSubmissions
-from finflow.sec.parsing import parse_company_facts, parse_submissions
+from finstream.sec.edgar import SecEdgarClient, _normalize_cik
+from finstream.sec.models import SecCompanyFacts, SecCompanySourceData, SecSubmissions
+from finstream.sec.parsing import parse_company_facts, parse_submissions
 
 
 class SecFinancialIngestionService:

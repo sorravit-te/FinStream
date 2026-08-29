@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import pytest
 import requests
 
-from finflow.market.twelve_data import TwelveDataClient, TwelveDataError
+from finstream.market.twelve_data import TwelveDataClient, TwelveDataError
 
 
 def _mock_session(payload: object) -> tuple[Mock, Mock]:

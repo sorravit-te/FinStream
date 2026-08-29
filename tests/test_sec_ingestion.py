@@ -2,10 +2,10 @@ from unittest.mock import Mock, call
 
 import pytest
 
-from finflow.sec.edgar import SecEdgarClient, SecEdgarError
-from finflow.sec.ingestion import SecFinancialIngestionService
-from finflow.sec.models import SecCompanySourceData
-from finflow.sec.parsing import (
+from finstream.sec.edgar import SecEdgarClient, SecEdgarError
+from finstream.sec.ingestion import SecFinancialIngestionService
+from finstream.sec.models import SecCompanySourceData
+from finstream.sec.parsing import (
     SecCompanyFactsValidationError,
     SecSubmissionsValidationError,
 )

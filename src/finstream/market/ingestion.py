@@ -3,10 +3,10 @@
 from collections.abc import Iterable
 from datetime import date
 
-from finflow.market.models import DailyMarketPrice
-from finflow.market.parsing import parse_daily_time_series
-from finflow.market.persistence import MarketPersistenceResult, MarketRecordStore
-from finflow.market.twelve_data import TwelveDataClient
+from finstream.market.models import DailyMarketPrice
+from finstream.market.parsing import parse_daily_time_series
+from finstream.market.persistence import MarketPersistenceResult, MarketRecordStore
+from finstream.market.twelve_data import TwelveDataClient
 
 
 def _normalize_symbol(symbol: str) -> str:

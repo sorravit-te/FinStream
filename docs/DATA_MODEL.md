@@ -2,7 +2,7 @@
 
 ## Overview
 
-FinFlow separates source-preserving data from standardized and analytical models:
+FinStream separates source-preserving data from standardized and analytical models:
 
 - **Bronze** preserves source data with minimal interpretation.
 - **Silver** contains cleaned, typed, standardized, deduplicated, source-aligned models.
@@ -86,9 +86,9 @@ Logical attributes may include series ID, title, frequency, units, and seasonal-
 
 ### `dim_financial_metric`
 
-This dimension represents canonical FinFlow financial metrics for cross-company analytics, conceptually including revenue, net income, assets, liabilities, cash, stockholders' equity, and earnings per share.
+This dimension represents canonical FinStream financial metrics for cross-company analytics, conceptually including revenue, net income, assets, liabilities, cash, stockholders' equity, and earnings per share.
 
-> Grain: One row per canonical FinFlow financial metric.
+> Grain: One row per canonical FinStream financial metric.
 
 SEC taxonomy concepts must eventually be mapped explicitly to these metrics. The final mapping structure and mappings are deferred.
 

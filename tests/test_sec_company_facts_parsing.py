@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-from finflow.sec.models import SecCompanyFacts, SecFinancialFact
-from finflow.sec.parsing import (
+from finstream.sec.models import SecCompanyFacts, SecFinancialFact
+from finstream.sec.parsing import (
     SecCompanyFactsValidationError,
     parse_company_facts,
 )

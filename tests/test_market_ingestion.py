@@ -4,11 +4,11 @@ from unittest.mock import Mock, call
 
 import pytest
 
-from finflow.market.ingestion import MarketIngestionService
-from finflow.market.models import DailyMarketPrice
-from finflow.market.parsing import MarketDataValidationError
-from finflow.market.persistence import MarketPersistenceResult, MarketRecordStore
-from finflow.market.twelve_data import TwelveDataClient, TwelveDataError
+from finstream.market.ingestion import MarketIngestionService
+from finstream.market.models import DailyMarketPrice
+from finstream.market.parsing import MarketDataValidationError
+from finstream.market.persistence import MarketPersistenceResult, MarketRecordStore
+from finstream.market.twelve_data import TwelveDataClient, TwelveDataError
 
 
 def _payload(symbol: str, values: list[dict[str, str]] | None = None) -> dict:

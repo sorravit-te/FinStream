@@ -3,8 +3,8 @@ from typing import Any
 
 import pytest
 
-from finflow.sec.models import SecFilingMetadata, SecSubmissions
-from finflow.sec.parsing import SecSubmissionsValidationError, parse_submissions
+from finstream.sec.models import SecFilingMetadata, SecSubmissions
+from finstream.sec.parsing import SecSubmissionsValidationError, parse_submissions
 
 
 _RECENT_FIELDS = (

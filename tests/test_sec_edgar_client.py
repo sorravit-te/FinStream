@@ -4,11 +4,11 @@ from unittest.mock import Mock
 import pytest
 import requests
 
-from finflow.sec.edgar import SecEdgarClient, SecEdgarError
+from finstream.sec.edgar import SecEdgarClient, SecEdgarError
 
 
 _HEADERS = {
-    "User-Agent": "FinFlow test@example.com",
+    "User-Agent": "FinStream test@example.com",
     "Accept": "application/json",
     "Accept-Encoding": "gzip, deflate",
 }
@@ -36,7 +36,7 @@ def test_strips_user_agent_and_forwards_headers_and_timeout() -> None:
     payload = {"cik": "0000320193"}
     session, _ = _mock_session(payload)
     client = SecEdgarClient(
-        "  FinFlow test@example.com  ",
+        "  FinStream test@example.com  ",
         session=session,
         timeout_seconds=9.5,
     )
@@ -54,13 +54,13 @@ def test_strips_user_agent_and_forwards_headers_and_timeout() -> None:
 @pytest.mark.parametrize("timeout_seconds", [0, -1])
 def test_rejects_non_positive_timeout(timeout_seconds: float) -> None:
     with pytest.raises(ValueError, match="Timeout"):
-        SecEdgarClient("FinFlow test@example.com", timeout_seconds=timeout_seconds)
+        SecEdgarClient("FinStream test@example.com", timeout_seconds=timeout_seconds)
 
 
 @pytest.mark.parametrize("cik", [320193, "320193", "0000320193"])
 def test_normalizes_cik_for_submissions_endpoint(cik: str | int) -> None:
     session, _ = _mock_session({})
-    client = SecEdgarClient("FinFlow test@example.com", session=session)
+    client = SecEdgarClient("FinStream test@example.com", session=session)
 
     client.fetch_submissions(cik)
 
@@ -77,7 +77,7 @@ def test_normalizes_cik_for_submissions_endpoint(cik: str | int) -> None:
 )
 def test_rejects_invalid_cik_before_request(cik: object) -> None:
     session = Mock(spec=requests.Session)
-    client = SecEdgarClient("FinFlow test@example.com", session=session)
+    client = SecEdgarClient("FinStream test@example.com", session=session)
 
     with pytest.raises((TypeError, ValueError)):
         client.fetch_submissions(cik)  # type: ignore[arg-type]
@@ -88,7 +88,7 @@ def test_rejects_invalid_cik_before_request(cik: object) -> None:
 def test_fetches_company_facts_from_exact_endpoint() -> None:
     payload = {"facts": {}}
     session, _ = _mock_session(payload)
-    client = SecEdgarClient("FinFlow test@example.com", session=session)
+    client = SecEdgarClient("FinStream test@example.com", session=session)
 
     result = client.fetch_company_facts("320193")
 
@@ -103,7 +103,7 @@ def test_fetches_company_facts_from_exact_endpoint() -> None:
 def test_wraps_network_failure() -> None:
     session = Mock(spec=requests.Session)
     session.get.side_effect = requests.ConnectionError("network unavailable")
-    client = SecEdgarClient("FinFlow test@example.com", session=session)
+    client = SecEdgarClient("FinStream test@example.com", session=session)
 
     with pytest.raises(SecEdgarError, match="^SEC EDGAR request failed$"):
         client.fetch_submissions(320193)
@@ -113,7 +113,7 @@ def test_wraps_http_failure_without_exposing_exception_chain() -> None:
     marker = "raw-request-details"
     session, response = _mock_session({})
     response.raise_for_status.side_effect = requests.HTTPError(marker)
-    client = SecEdgarClient("FinFlow test@example.com", session=session)
+    client = SecEdgarClient("FinStream test@example.com", session=session)
 
     with pytest.raises(SecEdgarError) as error:
         client.fetch_company_facts(320193)
@@ -127,7 +127,7 @@ def test_wraps_http_failure_without_exposing_exception_chain() -> None:
 def test_raises_for_invalid_json() -> None:
     session, response = _mock_session(None)
     response.json.side_effect = ValueError("invalid JSON")
-    client = SecEdgarClient("FinFlow test@example.com", session=session)
+    client = SecEdgarClient("FinStream test@example.com", session=session)
 
     with pytest.raises(SecEdgarError, match="invalid JSON"):
         client.fetch_submissions(320193)
@@ -136,7 +136,7 @@ def test_raises_for_invalid_json() -> None:
 @pytest.mark.parametrize("payload", [[], "unexpected", None])
 def test_rejects_non_object_payload(payload: object) -> None:
     session, _ = _mock_session(payload)
-    client = SecEdgarClient("FinFlow test@example.com", session=session)
+    client = SecEdgarClient("FinStream test@example.com", session=session)
 
     with pytest.raises(SecEdgarError, match="unexpected payload"):
         client.fetch_company_facts(320193)

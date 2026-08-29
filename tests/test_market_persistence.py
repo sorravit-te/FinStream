@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from finflow.market.models import DailyMarketPrice
-from finflow.market.persistence import (
+from finstream.market.models import DailyMarketPrice
+from finstream.market.persistence import (
     JsonMarketRecordStore,
     MarketPersistenceError,
     MarketPersistenceResult,

@@ -2,7 +2,7 @@
 
 ## Overview
 
-FinFlow V1 combines the following external sources:
+FinStream V1 combines the following external sources:
 
 | Domain | Provider | Purpose |
 | --- | --- | --- |
@@ -20,15 +20,15 @@ SEC EDGAR provides corporate filing metadata and structured XBRL financial facts
 
 ### Data Used
 
-FinFlow initially uses filing history and metadata, structured XBRL company facts, and commonly useful reported values: revenue, net income, assets, liabilities, cash, stockholders' equity, and earnings per share. Final XBRL concept mappings are deferred to later source implementation and data-modeling work.
+FinStream initially uses filing history and metadata, structured XBRL company facts, and commonly useful reported values: revenue, net income, assets, liabilities, cash, stockholders' equity, and earnings per share. Final XBRL concept mappings are deferred to later source implementation and data-modeling work.
 
 ### Access and Format
 
-SEC public data APIs return JSON and do not require an API key. Automated access must comply with SEC fair-access rules and identify the application with an appropriate User-Agent. SEC currently publishes a maximum fair-access rate of 10 requests per second; FinFlow should operate comfortably below that limit rather than maximize throughput.
+SEC public data APIs return JSON and do not require an API key. Automated access must comply with SEC fair-access rules and identify the application with an appropriate User-Agent. SEC currently publishes a maximum fair-access rate of 10 requests per second; FinStream should operate comfortably below that limit rather than maximize throughput.
 
 ### Update Behavior
 
-SEC data is filing-driven, not daily. Quarterly and annual filings, amendments, and other filing events can update submissions and XBRL APIs as filings are disseminated. FinFlow must detect new or changed source records rather than assume each run has new financial data.
+SEC data is filing-driven, not daily. Quarterly and annual filings, amendments, and other filing events can update submissions and XBRL APIs as filings are disseminated. FinStream must detect new or changed source records rather than assume each run has new financial data.
 
 ### Source Considerations
 
@@ -40,7 +40,7 @@ SEC data is filing-driven, not daily. Quarterly and annual filings, amendments, 
 
 ### Purpose
 
-Twelve Data provides FinFlow V1's daily market-price data.
+Twelve Data provides FinStream V1's daily market-price data.
 
 ### Data Used
 
@@ -48,11 +48,11 @@ The initial dataset contains daily OHLCV fields: symbol, trading date, open, hig
 
 ### Access and Format
 
-Twelve Data requires an API key. Its responses will be parsed into FinFlow's internal market schema. Twelve Data uses a credit-based quota system; the current Basic plan provides 8 API credits per minute and 800 credits per day. These limits are external operational constraints and may change.
+Twelve Data requires an API key. Its responses will be parsed into FinStream's internal market schema. Twelve Data uses a credit-based quota system; the current Basic plan provides 8 API credits per minute and 800 credits per day. These limits are external operational constraints and may change.
 
 ### Update Behavior
 
-FinFlow consumes daily market observations. Weekends and exchange holidays do not normally produce new rows, so a pipeline run does not necessarily create a market record. Incremental ingestion should retrieve only required new or missing trading dates where practical.
+FinStream consumes daily market observations. Weekends and exchange holidays do not normally produce new rows, so a pipeline run does not necessarily create a market record. Incremental ingestion should retrieve only required new or missing trading dates where practical.
 
 ### Source Considerations
 
@@ -69,7 +69,7 @@ FRED provides macroeconomic data that adds broader economic context to market an
 
 ### Access and Format
 
-FRED API access requires an API key, and FinFlow will request JSON responses. Series metadata and observations should remain distinguishable because frequency, units, and update behavior vary by series.
+FRED API access requires an API key, and FinStream will request JSON responses. Series metadata and observations should remain distinguishable because frequency, units, and update behavior vary by series.
 
 ### Update Behavior
 

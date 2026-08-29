@@ -5,7 +5,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from finflow.market.models import DailyMarketPrice
+from finstream.market.models import DailyMarketPrice
 
 
 _DAILY_INTERVAL = "1day"

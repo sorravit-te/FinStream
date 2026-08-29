@@ -1,10 +1,10 @@
-"""Shared logging configuration for the FinFlow package."""
+"""Shared logging configuration for the FinStream package."""
 
 import logging
 
 
-_PACKAGE_LOGGER_NAME = "finflow"
-_HANDLER_NAME = "finflow_stream"
+_PACKAGE_LOGGER_NAME = "finstream"
+_HANDLER_NAME = "finstream_stream"
 _LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
 
 
@@ -23,7 +23,7 @@ def _resolve_log_level(level: str | int) -> int:
 
 
 def configure_logging(level: str | int = "INFO") -> logging.Logger:
-    """Configure and return the FinFlow package logger."""
+    """Configure and return the FinStream package logger."""
     resolved_level = _resolve_log_level(level)
     logger = logging.getLogger(_PACKAGE_LOGGER_NAME)
     logger.setLevel(resolved_level)

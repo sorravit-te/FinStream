@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "finflow"
+name = "finstream"
 version = "0.1.0"
-description = "FinFlow data engineering project"
+description = "FinStream data engineering project"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "python-dotenv>=1,<2",
