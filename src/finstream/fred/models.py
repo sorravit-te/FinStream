@@ -43,3 +43,12 @@ class FredSeriesObservations:
 
     series_id: str
     observations: tuple[FredObservation, ...]
+
+
+@dataclass(frozen=True)
+class FredSeriesSourceData:
+    """Successfully parsed source data for one FRED series."""
+
+    series_id: str
+    metadata: FredSeriesMetadata
+    observations: FredSeriesObservations
