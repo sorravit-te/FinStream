@@ -2,7 +2,7 @@
 
 import os
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dotenv import dotenv_values
@@ -15,6 +15,7 @@ class Settings:
     twelve_data_api_key: str | None
     fred_api_key: str | None
     sec_user_agent: str | None
+    postgres_dsn: str | None = field(repr=False)
 
 
 def _clean_value(value: str | None) -> str | None:
@@ -42,4 +43,5 @@ def load_settings(
         twelve_data_api_key=value_for("TWELVE_DATA_API_KEY"),
         fred_api_key=value_for("FRED_API_KEY"),
         sec_user_agent=value_for("SEC_USER_AGENT"),
+        postgres_dsn=value_for("POSTGRES_DSN"),
     )
