@@ -1,8 +1,23 @@
 """Application service for retrieving and parsing FRED source data."""
 
 from collections.abc import Iterable
-from datetime import date
+from datetime import date, datetime
+from pathlib import Path
+from typing import Any
 
+from finstream.bronze.json_storage import raw_json_path, write_raw_json
+from finstream.bronze.models import BronzeRunLocation
+from finstream.bronze.parquet_storage import parquet_path, write_parquet
+from finstream.bronze.paths import DEFAULT_BRONZE_ROOT
+from finstream.fred.bronze import (
+    FRED_BRONZE_SOURCE,
+    FRED_SERIES_METADATA_BRONZE_DATASET,
+    FRED_SERIES_OBSERVATIONS_BRONZE_DATASET,
+    FredBronzeDatasetResult,
+    FredSeriesBronzeResult,
+    fred_series_metadata_to_table,
+    fred_series_observations_to_table,
+)
 from finstream.fred.client import FredClient
 from finstream.fred.models import (
     FredSeriesMetadata,
@@ -53,6 +68,23 @@ class FredMacroeconomicIngestionService:
         """Retrieve and parse metadata for one FRED series."""
         return self._ingest_metadata(_normalize_series_id(series_id))
 
+    def ingest_metadata_to_bronze(
+        self,
+        series_id: str,
+        *,
+        run_at: datetime,
+        bronze_root: str | Path = DEFAULT_BRONZE_ROOT,
+    ) -> FredBronzeDatasetResult:
+        """Retrieve and persist one FRED series metadata Bronze dataset."""
+        normalized_id = _normalize_series_id(series_id)
+        location = self._bronze_location(
+            dataset=FRED_SERIES_METADATA_BRONZE_DATASET,
+            run_at=run_at,
+            bronze_root=bronze_root,
+        )
+        self._preflight_bronze_location(location)
+        return self._ingest_metadata_to_bronze(normalized_id, location)
+
     def ingest_observations(
         self,
         series_id: str,
@@ -71,6 +103,40 @@ class FredMacroeconomicIngestionService:
         )
         return self._ingest_observations(
             _normalize_series_id(series_id),
+            observation_start=observation_start,
+            observation_end=observation_end,
+            realtime_start=realtime_start,
+            realtime_end=realtime_end,
+        )
+
+    def ingest_observations_to_bronze(
+        self,
+        series_id: str,
+        *,
+        run_at: datetime,
+        bronze_root: str | Path = DEFAULT_BRONZE_ROOT,
+        observation_start: date | None = None,
+        observation_end: date | None = None,
+        realtime_start: date | None = None,
+        realtime_end: date | None = None,
+    ) -> FredBronzeDatasetResult:
+        """Retrieve and persist one FRED observations Bronze dataset."""
+        normalized_id = _normalize_series_id(series_id)
+        _validate_ranges(
+            observation_start=observation_start,
+            observation_end=observation_end,
+            realtime_start=realtime_start,
+            realtime_end=realtime_end,
+        )
+        location = self._bronze_location(
+            dataset=FRED_SERIES_OBSERVATIONS_BRONZE_DATASET,
+            run_at=run_at,
+            bronze_root=bronze_root,
+        )
+        self._preflight_bronze_location(location)
+        return self._ingest_observations_to_bronze(
+            normalized_id,
+            location,
             observation_start=observation_start,
             observation_end=observation_end,
             realtime_start=realtime_start,
@@ -99,6 +165,53 @@ class FredMacroeconomicIngestionService:
             observation_end=observation_end,
             realtime_start=realtime_start,
             realtime_end=realtime_end,
+        )
+
+    def ingest_series_to_bronze(
+        self,
+        series_id: str,
+        *,
+        run_at: datetime,
+        bronze_root: str | Path = DEFAULT_BRONZE_ROOT,
+        observation_start: date | None = None,
+        observation_end: date | None = None,
+        realtime_start: date | None = None,
+        realtime_end: date | None = None,
+    ) -> FredSeriesBronzeResult:
+        """Retrieve and persist both FRED Bronze datasets for one series."""
+        normalized_id = _normalize_series_id(series_id)
+        _validate_ranges(
+            observation_start=observation_start,
+            observation_end=observation_end,
+            realtime_start=realtime_start,
+            realtime_end=realtime_end,
+        )
+        metadata_location = self._bronze_location(
+            dataset=FRED_SERIES_METADATA_BRONZE_DATASET,
+            run_at=run_at,
+            bronze_root=bronze_root,
+        )
+        observations_location = self._bronze_location(
+            dataset=FRED_SERIES_OBSERVATIONS_BRONZE_DATASET,
+            run_at=run_at,
+            bronze_root=bronze_root,
+        )
+        self._preflight_bronze_location(metadata_location)
+        self._preflight_bronze_location(observations_location)
+
+        metadata = self._ingest_metadata_to_bronze(normalized_id, metadata_location)
+        observations = self._ingest_observations_to_bronze(
+            normalized_id,
+            observations_location,
+            observation_start=observation_start,
+            observation_end=observation_end,
+            realtime_start=realtime_start,
+            realtime_end=realtime_end,
+        )
+        return FredSeriesBronzeResult(
+            series_id=normalized_id,
+            metadata=metadata,
+            observations=observations,
         )
 
     def ingest_series_ids(
@@ -155,9 +268,103 @@ class FredMacroeconomicIngestionService:
             realtime_end=realtime_end,
         )
 
-    def _ingest_metadata(self, normalized_id: str) -> FredSeriesMetadata:
+    @staticmethod
+    def _bronze_location(
+        *,
+        dataset: str,
+        run_at: datetime,
+        bronze_root: str | Path,
+    ) -> BronzeRunLocation:
+        return BronzeRunLocation.from_run(
+            root=bronze_root,
+            source=FRED_BRONZE_SOURCE,
+            dataset=dataset,
+            ingested_at=run_at,
+        )
+
+    @staticmethod
+    def _preflight_bronze_location(location: BronzeRunLocation) -> None:
+        if raw_json_path(location).exists() or parquet_path(location).exists():
+            raise FileExistsError("FRED Bronze artifact already exists for this run")
+
+    def _ingest_metadata_to_bronze(
+        self,
+        normalized_id: str,
+        location: BronzeRunLocation,
+    ) -> FredBronzeDatasetResult:
+        payload, metadata = self._fetch_and_parse_metadata(normalized_id)
+        table = fred_series_metadata_to_table(metadata)
+        persisted_raw_json_path = write_raw_json(location, payload)
+        persisted_parquet_path = write_parquet(location, table)
+        return FredBronzeDatasetResult(
+            series_id=normalized_id,
+            location=location,
+            raw_json_path=persisted_raw_json_path,
+            parquet_path=persisted_parquet_path,
+            record_count=1,
+        )
+
+    def _ingest_observations_to_bronze(
+        self,
+        normalized_id: str,
+        location: BronzeRunLocation,
+        *,
+        observation_start: date | None,
+        observation_end: date | None,
+        realtime_start: date | None,
+        realtime_end: date | None,
+    ) -> FredBronzeDatasetResult:
+        payload, observations = self._fetch_and_parse_observations(
+            normalized_id,
+            observation_start=observation_start,
+            observation_end=observation_end,
+            realtime_start=realtime_start,
+            realtime_end=realtime_end,
+        )
+        table = fred_series_observations_to_table(observations)
+        persisted_raw_json_path = write_raw_json(location, payload)
+        persisted_parquet_path = write_parquet(location, table)
+        return FredBronzeDatasetResult(
+            series_id=normalized_id,
+            location=location,
+            raw_json_path=persisted_raw_json_path,
+            parquet_path=persisted_parquet_path,
+            record_count=len(observations.observations),
+        )
+
+    def _fetch_and_parse_metadata(
+        self,
+        normalized_id: str,
+    ) -> tuple[dict[str, Any], FredSeriesMetadata]:
         payload = self._client.fetch_series(normalized_id)
-        return parse_series_metadata(payload, expected_series_id=normalized_id)
+        metadata = parse_series_metadata(payload, expected_series_id=normalized_id)
+        return payload, metadata
+
+    def _ingest_metadata(self, normalized_id: str) -> FredSeriesMetadata:
+        _, metadata = self._fetch_and_parse_metadata(normalized_id)
+        return metadata
+
+    def _fetch_and_parse_observations(
+        self,
+        normalized_id: str,
+        *,
+        observation_start: date | None,
+        observation_end: date | None,
+        realtime_start: date | None,
+        realtime_end: date | None,
+    ) -> tuple[dict[str, Any], FredSeriesObservations]:
+        payload = self._client.fetch_series_observations(
+            normalized_id,
+            observation_start=observation_start,
+            observation_end=observation_end,
+            realtime_start=realtime_start,
+            realtime_end=realtime_end,
+        )
+        observations = parse_series_observations(
+            payload,
+            expected_series_id=normalized_id,
+        )
+        return payload, observations
 
     def _ingest_observations(
         self,
@@ -168,17 +375,14 @@ class FredMacroeconomicIngestionService:
         realtime_start: date | None,
         realtime_end: date | None,
     ) -> FredSeriesObservations:
-        payload = self._client.fetch_series_observations(
+        _, observations = self._fetch_and_parse_observations(
             normalized_id,
             observation_start=observation_start,
             observation_end=observation_end,
             realtime_start=realtime_start,
             realtime_end=realtime_end,
         )
-        return parse_series_observations(
-            payload,
-            expected_series_id=normalized_id,
-        )
+        return observations
 
     def _ingest_series(
         self,
