@@ -1,10 +1,15 @@
-"""Validation and parsing for FRED series metadata payloads."""
+"""Validation and parsing for FRED series payloads."""
 
 import re
 from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from finstream.fred.models import FredSeriesMetadata
+from finstream.fred.models import (
+    FredObservation,
+    FredSeriesMetadata,
+    FredSeriesObservations,
+)
 
 
 _DATE_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}\Z")
@@ -154,4 +159,100 @@ def parse_series_metadata(
         last_updated=_parse_last_updated(series_value.get("last_updated")),
         popularity=_parse_popularity(series_value.get("popularity")),
         notes=_parse_notes(series_value.get("notes")),
+    )
+
+
+class FredObservationValidationError(ValueError):
+    """Raised when a FRED observations payload is invalid."""
+
+
+def _normalize_observation_series_id(value: object) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise FredObservationValidationError(
+            "expected_series_id must be a non-blank string"
+        )
+    return value.strip()
+
+
+def _parse_observation_date(value: object, *, field_name: str) -> date:
+    if not isinstance(value, str) or not _DATE_PATTERN.fullmatch(value):
+        raise FredObservationValidationError(
+            f"{field_name} must use YYYY-MM-DD format"
+        )
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise FredObservationValidationError(
+            f"{field_name} is not a valid date"
+        ) from exc
+
+
+def _parse_observation_value(value: object) -> Decimal | None:
+    if not isinstance(value, str):
+        raise FredObservationValidationError("value must be a string")
+    if value == ".":
+        return None
+    if not value.strip():
+        raise FredObservationValidationError("value must not be blank")
+    try:
+        parsed_value = Decimal(value)
+    except InvalidOperation:
+        raise FredObservationValidationError(
+            "value must be a valid decimal string"
+        ) from None
+    if not parsed_value.is_finite():
+        raise FredObservationValidationError("value must be finite")
+    return parsed_value
+
+
+def _parse_observation(value: object, *, series_id: str) -> FredObservation:
+    if not isinstance(value, dict):
+        raise FredObservationValidationError("observation item must be an object")
+
+    realtime_start = _parse_observation_date(
+        value.get("realtime_start"),
+        field_name="realtime_start",
+    )
+    realtime_end = _parse_observation_date(
+        value.get("realtime_end"),
+        field_name="realtime_end",
+    )
+    if realtime_start > realtime_end:
+        raise FredObservationValidationError(
+            "realtime_start must not be after realtime_end"
+        )
+
+    return FredObservation(
+        series_id=series_id,
+        realtime_start=realtime_start,
+        realtime_end=realtime_end,
+        observation_date=_parse_observation_date(
+            value.get("date"),
+            field_name="date",
+        ),
+        value=_parse_observation_value(value.get("value")),
+    )
+
+
+def parse_series_observations(
+    payload: dict[str, Any],
+    *,
+    expected_series_id: str,
+) -> FredSeriesObservations:
+    """Parse source-aligned observations for one requested FRED series."""
+    normalized_series_id = _normalize_observation_series_id(expected_series_id)
+    if not isinstance(payload, dict):
+        raise FredObservationValidationError("payload must be an object")
+
+    observation_values = payload.get("observations")
+    if not isinstance(observation_values, list):
+        raise FredObservationValidationError("observations must be a list")
+
+    observations = tuple(
+        _parse_observation(value, series_id=normalized_series_id)
+        for value in observation_values
+    )
+    return FredSeriesObservations(
+        series_id=normalized_series_id,
+        observations=observations,
     )
