@@ -1,0 +1,1 @@
+"""Shared Bronze storage contracts."""
