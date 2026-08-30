@@ -1,0 +1,1 @@
+"""FRED API integration."""
