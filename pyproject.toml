@@ -12,6 +12,8 @@ dependencies = [
     "requests>=2.32,<3",
     "pyarrow>=25,<26",
     "psycopg[binary]>=3.3,<4",
+    "dbt-core>=1.11,<1.12",
+    "dbt-postgres>=1.11,<1.12",
 ]
 
 [project.optional-dependencies]
