@@ -1,0 +1,62 @@
+version: 2
+
+models:
+  - name: dim_company
+    description: >-
+      Gold company dimension at a grain of one row per SEC CIK. The
+      representative entity name is selected from the latest SEC filing date,
+      then by Silver ingestion provenance for deterministic tie-breaking.
+    columns:
+      - name: cik
+        description: SEC Central Index Key and stable company business identity.
+        data_tests: [not_null, unique]
+      - name: entity_name
+        description: Representative company name from the selected Silver SEC fact.
+        data_tests: [not_null]
+
+  - name: dim_date
+    description: >-
+      Gold calendar dimension at a grain of one row per calendar date. Its
+      inclusive date spine spans the minimum through maximum dates represented
+      by the approved Silver market, financial, and macro models.
+    columns:
+      - name: date_day
+        description: Calendar date represented by this row.
+        data_tests: [not_null, unique]
+      - name: year
+        description: Calendar year for date_day.
+      - name: quarter
+        description: Calendar quarter number from 1 through 4 for date_day.
+      - name: month
+        description: Calendar month number from 1 through 12 for date_day.
+      - name: day_of_month
+        description: Day of the calendar month for date_day.
+      - name: day_of_week
+        description: ISO day of week for date_day, where 1 is Monday and 7 is Sunday.
+      - name: is_weekend
+        description: True when date_day falls on an ISO Saturday or Sunday.
+
+  - name: dim_macro_series
+    description: >-
+      Gold macro series dimension at a grain of one row per FRED series ID,
+      derived from the approved Silver macro observation layer. FRED metadata
+      attributes remain deferred until a later approved model contract.
+    columns:
+      - name: series_id
+        description: FRED series identifier.
+        data_tests: [not_null, unique]
+
+  - name: dim_financial_metric
+    description: >-
+      Gold financial metric dimension at a grain of one row per canonical
+      metric_key. It is derived from the curated, intentionally incomplete
+      financial metric mapping seed. The mapping is applied only in Gold;
+      unmapped SEC facts remain valid Silver data, and currency or unit
+      normalization is outside this model's scope.
+    columns:
+      - name: metric_key
+        description: Stable FinStream canonical financial metric identifier.
+        data_tests: [not_null, unique]
+      - name: metric_name
+        description: Canonical metric display name defined by the mapping contract.
+        data_tests: [not_null]

@@ -54,7 +54,7 @@ This model represents normalized SEC XBRL fact occurrences.
 
 > Grain: One reported financial fact occurrence from one SEC filing context.
 
-It retains traceability information including company or CIK, taxonomy, source concept, unit, reporting period, filing form, filing date, accession information, and available fiscal metadata. Similarly named XBRL concepts from different companies are not assumed to be equivalent. Final canonical SEC concept mappings are deferred.
+It retains traceability information including company or CIK, taxonomy, source concept, unit, reporting period, filing form, filing date, accession information, and available fiscal metadata. Similarly named XBRL concepts from different companies are not assumed to be equivalent. Canonical mapping remains outside Silver and is applied only in Gold from a curated contract.
 
 ### `stg_macro_observations`
 
@@ -90,29 +90,29 @@ This dimension represents canonical FinStream financial metrics for cross-compan
 
 > Grain: One row per canonical FinStream financial metric.
 
-SEC taxonomy concepts must eventually be mapped explicitly to these metrics. The final mapping structure and mappings are deferred.
+The initial version-controlled mapping contract explicitly maps selected SEC taxonomy-plus-concept pairs to stable metric keys. It is intentionally curated and incomplete: unmapped SEC facts remain valid Silver data, and broader normalization remains deferred. The mapping defines semantic identity only; currency, unit, scale, and period normalization are outside its scope.
 
 ## Gold Facts
 
 ### `fact_market_daily`
 
-> Grain: One row per company per trading date.
+> Grain: One row per source symbol per trading date.
 
-Measures are open, high, low, close, and volume. The model must prevent duplicate company and trading-date observations.
+Measures are open, high, low, close, and volume. No ticker-to-CIK crosswalk is applied; the model retains the validated Silver symbol and trading-date grain.
 
 ### `fact_financial_reported`
 
-This fact represents standardized values reported through SEC filings.
+This fact represents mapped values reported through SEC filings.
 
-> Grain: One standardized financial fact for a company, reporting context, filing, and canonical financial metric.
+> Grain: One mapped reported SEC financial fact occurrence from one filing context.
 
-It preserves enough information to distinguish filing identity, original and amended filings where applicable, reporting period, fiscal context, and relevant units. Company fiscal periods must not be forced into calendar quarters when fiscal calendars differ.
+Only approved taxonomy-plus-concept mappings enter this fact; unmapped SEC facts remain valid Silver data. It retains source taxonomy and concept, filing identity, reporting period, fiscal context, and source units. Company fiscal periods must not be forced into calendar quarters when fiscal calendars differ.
 
 ### `fact_macro_observation`
 
 > Grain: One current canonical value per macro series per observation date.
 
-Silver retains available source real-time metadata. If full revision or vintage analytics are later required, a dedicated vintage-aware model must be introduced rather than silently changing the meaning of `fact_macro_observation`.
+Silver retains available source real-time metadata. This fact selects the latest available realtime context per series and observation date, with deterministic provenance tie-breaking. If full revision or vintage analytics are later required, a dedicated vintage-aware model must be introduced rather than silently changing the meaning of `fact_macro_observation`.
 
 ## Analytics Marts
 

@@ -1,0 +1,23 @@
+version: 2
+
+seeds:
+  - name: financial_metric_mapping
+    description: >-
+      Curated, intentionally incomplete mapping from SEC taxonomy and concept
+      pairs to stable FinStream canonical financial metrics. It is applied only
+      in Gold-layer models; unmapped SEC facts remain valid Silver data. This
+      contract defines semantic identity only and performs no currency, unit,
+      scale, or period normalization.
+    columns:
+      - name: taxonomy
+        description: SEC XBRL taxonomy namespace for the mapped source concept.
+        data_tests: [not_null]
+      - name: concept
+        description: Source XBRL concept name within taxonomy.
+        data_tests: [not_null]
+      - name: metric_key
+        description: Stable, lowercase, machine-friendly FinStream metric identifier.
+        data_tests: [not_null]
+      - name: metric_name
+        description: Canonical display name defined consistently for metric_key.
+        data_tests: [not_null]

@@ -1,0 +1,116 @@
+version: 2
+
+models:
+  - name: fact_market_daily
+    description: >-
+      Gold daily market fact at a grain of one row per source symbol and
+      trading date. It projects the validated Silver OHLCV observation without
+      a ticker-to-CIK mapping, normalization, or additional deduplication.
+    columns:
+      - name: symbol
+        description: Source market symbol; no company crosswalk is applied.
+        data_tests: [not_null]
+      - name: trading_date
+        description: Trading date for the source market observation.
+        data_tests: [not_null]
+      - name: open
+        description: Source opening price at retained Silver numeric precision.
+        data_tests: [not_null]
+      - name: high
+        description: Source high price at retained Silver numeric precision.
+        data_tests: [not_null]
+      - name: low
+        description: Source low price at retained Silver numeric precision.
+        data_tests: [not_null]
+      - name: close
+        description: Source closing price at retained Silver numeric precision.
+        data_tests: [not_null]
+      - name: volume
+        description: Source trading volume; null remains valid when retained by Silver.
+
+  - name: fact_financial_reported
+    description: >-
+      Gold mapped SEC financial fact at a grain of one mapped reported fact
+      occurrence from one SEC filing context. Only taxonomy-plus-concept pairs
+      in the curated mapping contract enter this model; unmapped SEC facts
+      remain valid Silver data. Source taxonomy and concept are retained for
+      lineage. Canonical mapping does not normalize currency, units, scale, or
+      reporting periods.
+    columns:
+      - name: cik
+        description: SEC CIK identifying the reporting company.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_company')
+                field: cik
+      - name: metric_key
+        description: Canonical metric key supplied by the approved mapping contract.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_financial_metric')
+                field: metric_key
+      - name: taxonomy
+        description: Source SEC XBRL taxonomy retained for mapping lineage.
+        data_tests: [not_null]
+      - name: concept
+        description: Source SEC XBRL concept retained for mapping lineage.
+        data_tests: [not_null]
+      - name: unit
+        description: Source SEC unit retained without conversion or normalization.
+        data_tests: [not_null]
+      - name: value
+        description: Reported SEC numeric value at retained Silver precision.
+        data_tests: [not_null]
+      - name: start_date
+        description: Source reporting-period start date; null remains valid for instant facts.
+      - name: end_date
+        description: Source reporting-period end date.
+        data_tests: [not_null]
+      - name: accession_number
+        description: SEC filing accession identifier for the reported fact context.
+        data_tests: [not_null]
+      - name: fiscal_year
+        description: SEC-provided fiscal year retained without calendar conversion.
+      - name: fiscal_period
+        description: SEC-provided fiscal period retained without calendar conversion.
+      - name: form
+        description: SEC filing form for the reported fact context.
+      - name: filed_date
+        description: SEC filing date for the reported fact context.
+        data_tests: [not_null]
+      - name: frame
+        description: SEC-provided reporting frame retained when available.
+
+  - name: fact_macro_observation
+    description: >-
+      Gold macro fact at a grain of one current canonical observation per FRED
+      series and observation date. Silver retains all retrieved realtime or
+      vintage contexts; this model selects the latest realtime_start, then
+      realtime_end, then Silver provenance for deterministic tie-breaking.
+      Source values remain nullable when FRED reports a valid missing value.
+    columns:
+      - name: series_id
+        description: FRED series identifier.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_macro_series')
+                field: series_id
+      - name: observation_date
+        description: Date to which the selected macro observation applies.
+        data_tests: [not_null]
+      - name: realtime_start
+        description: Start of the realtime context selected as current.
+        data_tests: [not_null]
+      - name: realtime_end
+        description: End of the realtime context selected as current.
+        data_tests: [not_null]
+      - name: value
+        description: >-
+          Selected FRED value at retained Silver numeric precision; null remains
+          valid for a source missing-value marker and is not imputed.
