@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: stg_market_prices
+    description: >-
+      Silver market prices at a grain of one row per symbol per trading date.
+      When a source observation appears in multiple ingestion runs, this model
+      selects the row from the latest ingestion event, ordered by ingested_at
+      descending, then run_id, loaded_at, and source_row_number descending for
+      deterministic tie-breaking. Source OHLCV values and their PostgreSQL
+      precision are preserved without normalization or derived metrics.
+    columns:
+      - name: symbol
+        description: Market symbol as supplied by the source.
+        data_tests: [not_null]
+      - name: trading_date
+        description: Trading date as supplied by the source.
+        data_tests: [not_null]
+      - name: open
+        description: Source opening price, preserving PostgreSQL numeric precision.
+        data_tests: [not_null]
+      - name: high
+        description: Source high price, preserving PostgreSQL numeric precision.
+        data_tests: [not_null]
+      - name: low
+        description: Source low price, preserving PostgreSQL numeric precision.
+        data_tests: [not_null]
+      - name: close
+        description: Source closing price, preserving PostgreSQL numeric precision.
+        data_tests: [not_null]
+      - name: volume
+        description: Source trading volume; null is retained when the source value is null.
+      - name: source
+        description: Source-system label for the selected market row.
+        data_tests: [not_null]
+      - name: dataset
+        description: Source dataset label for the selected market row.
+        data_tests: [not_null]
+      - name: run_id
+        description: Ingestion run that supplied the selected market row.
+        data_tests: [not_null]
+      - name: source_row_number
+        description: Row identity and order within the selected ingestion run.
+        data_tests: [not_null]
+      - name: ingested_at
+        description: Ingestion event timestamp used as the primary recency field.
+        data_tests: [not_null]
+      - name: loaded_at
+        description: PostgreSQL load timestamp for the selected ingestion run.
+        data_tests: [not_null]

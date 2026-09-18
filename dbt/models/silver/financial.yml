@@ -1,0 +1,75 @@
+version: 2
+
+models:
+  - name: stg_financial_facts
+    description: >-
+      Source-aligned SEC/XBRL fact occurrences at a grain of one reported
+      financial fact occurrence from one SEC filing context. Repeated
+      retrievals of the same context across ingestion runs are collapsed by
+      selecting the latest ingested representation. Recency is ordered by
+      ingested_at descending, then run_id, loaded_at, and source_row_number
+      descending for deterministic tie-breaking. SEC taxonomy, concept, unit,
+      reported values, filing context, and source precision are retained.
+      Canonical FinStream financial metric mapping is deferred. Fiscal periods
+      are retained as reported and are not converted to calendar quarters.
+    columns:
+      - name: cik
+        description: SEC Central Index Key identifying the company.
+        data_tests: [not_null]
+      - name: entity_name
+        description: Company name carried by the SEC Company Facts response.
+        data_tests: [not_null]
+      - name: taxonomy
+        description: SEC XBRL taxonomy namespace containing the source concept.
+        data_tests: [not_null]
+      - name: concept
+        description: Source XBRL concept name within the taxonomy; no canonical mapping is applied.
+        data_tests: [not_null]
+      - name: label
+        description: SEC-provided descriptive label for the concept, when supplied.
+      - name: description
+        description: SEC-provided concept description, when supplied.
+      - name: unit
+        description: Unit associated with the reported SEC fact.
+        data_tests: [not_null]
+      - name: value
+        description: Reported SEC fact value retained at the source NUMERIC(76,30) precision.
+        data_tests: [not_null]
+      - name: start_date
+        description: Start of the reported fact period; null is retained for instant facts.
+      - name: end_date
+        description: End date of the reported fact period, as supplied by the source.
+        data_tests: [not_null]
+      - name: accession_number
+        description: SEC accession identifier for the filing context of this fact.
+        data_tests: [not_null]
+      - name: fiscal_year
+        description: SEC-provided fiscal year, retained without deriving or filling a value.
+      - name: fiscal_period
+        description: SEC-provided fiscal period label, not converted to a calendar quarter.
+      - name: form
+        description: SEC filing form associated with the reported fact.
+        data_tests: [not_null]
+      - name: filed_date
+        description: SEC filing date associated with the reported fact.
+        data_tests: [not_null]
+      - name: frame
+        description: SEC-provided reporting frame label, when supplied.
+      - name: source
+        description: Source-system label for the selected ingestion record.
+        data_tests: [not_null]
+      - name: dataset
+        description: Source dataset label for the selected ingestion record.
+        data_tests: [not_null]
+      - name: run_id
+        description: Ingestion run that supplied the selected SEC fact representation.
+        data_tests: [not_null]
+      - name: source_row_number
+        description: Row identity and order within the selected ingestion run.
+        data_tests: [not_null]
+      - name: ingested_at
+        description: Ingestion event timestamp used as the primary recency field.
+        data_tests: [not_null]
+      - name: loaded_at
+        description: PostgreSQL load timestamp for the selected ingestion run.
+        data_tests: [not_null]

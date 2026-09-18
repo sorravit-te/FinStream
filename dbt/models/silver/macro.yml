@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: stg_macro_observations
+    description: >-
+      Silver FRED observations at a grain of one retrieved observation per
+      series, observation date, and source real-time context. Repeated retrievals
+      of the same context are deduplicated by selecting the latest ingestion
+      event, ordered by ingested_at descending, then run_id, loaded_at, and
+      source_row_number descending for deterministic tie-breaking. Distinct
+      realtime_start and realtime_end contexts remain distinct. The nullable
+      source value and its NUMERIC(76,30) precision are preserved. V1 does not
+      claim complete historical vintage coverage unless ingestion explicitly
+      retrieved it. Selecting one current canonical value per series and
+      observation date is deferred to Gold fact_macro_observation.
+    columns:
+      - name: series_id
+        description: FRED identifier for the observed series.
+        data_tests: [not_null]
+      - name: observation_date
+        description: Date to which the economic observation applies; distinct from its real-time context dates.
+        data_tests: [not_null]
+      - name: realtime_start
+        description: Start date of the source real-time context recorded for this observation.
+        data_tests: [not_null]
+      - name: realtime_end
+        description: End date of the source real-time context recorded for this observation.
+        data_tests: [not_null]
+      - name: value
+        description: >-
+          Source value at NUMERIC(76,30) precision. NULL is retained for a
+          valid FRED missing-value marker; no imputation is applied.
+      - name: source
+        description: Source-system label for the selected observation row.
+        data_tests: [not_null]
+      - name: dataset
+        description: Source dataset label for the selected observation row.
+        data_tests: [not_null]
+      - name: run_id
+        description: Ingestion run that supplied the selected observation representation.
+        data_tests: [not_null]
+      - name: source_row_number
+        description: Row identity and order within the selected ingestion run.
+        data_tests: [not_null]
+      - name: ingested_at
+        description: Ingestion event timestamp used as the primary recency field for duplicate retrievals.
+        data_tests: [not_null]
+      - name: loaded_at
+        description: PostgreSQL load timestamp for the selected ingestion run.
+        data_tests: [not_null]
