@@ -1,0 +1,209 @@
+version: 2
+
+sources:
+  - name: source_data
+    description: >-
+      Source-aligned PostgreSQL tables populated by FinStream's Python loading
+      layer from Bronze data. These declarations expose the physical Step 7
+      boundary to dbt; they do not perform Silver transformations.
+    schema: source_data
+    tables:
+      - name: ingestion_runs
+        description: >-
+          One record for each loaded source dataset run, including ingestion
+          provenance and the paths of the Bronze artifacts used by the load.
+        columns:
+          - name: source
+            description: Provider or source-system label for this ingestion run.
+            data_tests: [not_null]
+          - name: dataset
+            description: Source dataset label for this ingestion run.
+            data_tests: [not_null]
+          - name: run_id
+            description: Identifier for this ingestion run within its source and dataset.
+            data_tests: [not_null]
+          - name: ingested_at
+          - name: raw_json_path
+          - name: parquet_path
+          - name: record_count
+          - name: loaded_at
+
+      - name: market_daily_prices
+        description: >-
+          Source-aligned daily market price rows. Each row retains its source
+          run and row identity; it is not a Silver market model.
+        columns:
+          - name: source
+            description: Source-system label associated with the loaded row.
+            data_tests: [not_null]
+          - name: dataset
+            description: Source dataset label associated with the loaded row.
+            data_tests: [not_null]
+          - name: run_id
+            description: Ingestion run that supplied this row.
+            data_tests: [not_null]
+          - name: source_row_number
+            description: Row identity and order within the loaded source run.
+            data_tests: [not_null]
+          - name: symbol
+            description: Market symbol as supplied by the source.
+            data_tests: [not_null]
+          - name: trading_date
+            data_tests: [not_null]
+          - name: open
+          - name: high
+          - name: low
+          - name: close
+          - name: volume
+
+      - name: sec_submissions
+        description: >-
+          Source-aligned SEC filing submission records, retaining filing
+          identifiers and the ingestion run that supplied each row.
+        columns:
+          - name: source
+            description: Source-system label associated with the loaded row.
+            data_tests: [not_null]
+          - name: dataset
+            description: Source dataset label associated with the loaded row.
+            data_tests: [not_null]
+          - name: run_id
+            description: Ingestion run that supplied this row.
+            data_tests: [not_null]
+          - name: source_row_number
+            description: Row identity and order within the loaded source run.
+            data_tests: [not_null]
+          - name: cik
+            description: SEC Central Index Key identifying the company.
+            data_tests: [not_null]
+          - name: company_name
+          - name: accession_number
+            description: SEC accession identifier for the filing.
+            data_tests: [not_null]
+          - name: filing_date
+          - name: report_date
+          - name: acceptance_datetime
+          - name: form
+          - name: act
+          - name: file_number
+          - name: film_number
+          - name: items
+          - name: size
+          - name: is_xbrl
+          - name: is_inline_xbrl
+          - name: primary_document
+          - name: primary_doc_description
+
+      - name: sec_company_facts
+        description: >-
+          Source-aligned SEC XBRL company fact occurrences. Taxonomy, concept,
+          unit, filing, and reporting context remain source-specific here.
+        columns:
+          - name: source
+            description: Source-system label associated with the loaded row.
+            data_tests: [not_null]
+          - name: dataset
+            description: Source dataset label associated with the loaded row.
+            data_tests: [not_null]
+          - name: run_id
+            description: Ingestion run that supplied this row.
+            data_tests: [not_null]
+          - name: source_row_number
+            description: Row identity and order within the loaded source run.
+            data_tests: [not_null]
+          - name: cik
+            description: SEC Central Index Key identifying the company.
+            data_tests: [not_null]
+          - name: entity_name
+          - name: taxonomy
+            description: SEC XBRL taxonomy containing the source concept.
+            data_tests: [not_null]
+          - name: concept
+            description: Source XBRL concept name; no canonical metric mapping is applied here.
+            data_tests: [not_null]
+          - name: label
+          - name: description
+          - name: unit
+            description: Unit reported for the source fact.
+            data_tests: [not_null]
+          - name: value
+          - name: start_date
+          - name: end_date
+          - name: accession_number
+            description: SEC accession identifier for the filing associated with the fact.
+            data_tests: [not_null]
+          - name: fiscal_year
+          - name: fiscal_period
+          - name: form
+          - name: filed_date
+          - name: frame
+
+      - name: fred_series_metadata
+        description: >-
+          Source-aligned metadata records for FRED series, including the
+          source real-time interval captured with each row.
+        columns:
+          - name: source
+            description: Source-system label associated with the loaded row.
+            data_tests: [not_null]
+          - name: dataset
+            description: Source dataset label associated with the loaded row.
+            data_tests: [not_null]
+          - name: run_id
+            description: Ingestion run that supplied this row.
+            data_tests: [not_null]
+          - name: source_row_number
+            description: Row identity and order within the loaded source run.
+            data_tests: [not_null]
+          - name: series_id
+            description: FRED identifier for the series.
+            data_tests: [not_null]
+          - name: realtime_start
+            description: Start of the source real-time interval recorded for this row.
+            data_tests: [not_null]
+          - name: realtime_end
+            description: End of the source real-time interval recorded for this row.
+            data_tests: [not_null]
+          - name: title
+          - name: observation_start
+          - name: observation_end
+          - name: frequency
+          - name: frequency_short
+          - name: units
+          - name: units_short
+          - name: seasonal_adjustment
+          - name: seasonal_adjustment_short
+          - name: last_updated
+          - name: popularity
+          - name: notes
+
+      - name: fred_series_observations
+        description: >-
+          Source-aligned FRED observations retaining the series identifier,
+          observation date, and source real-time context captured for each row.
+        columns:
+          - name: source
+            description: Source-system label associated with the loaded row.
+            data_tests: [not_null]
+          - name: dataset
+            description: Source dataset label associated with the loaded row.
+            data_tests: [not_null]
+          - name: run_id
+            description: Ingestion run that supplied this row.
+            data_tests: [not_null]
+          - name: source_row_number
+            description: Row identity and order within the loaded source run.
+            data_tests: [not_null]
+          - name: series_id
+            description: FRED identifier for the series.
+            data_tests: [not_null]
+          - name: realtime_start
+            description: Start of the source real-time interval recorded for this row.
+            data_tests: [not_null]
+          - name: realtime_end
+            description: End of the source real-time interval recorded for this row.
+            data_tests: [not_null]
+          - name: observation_date
+            description: Observation date reported by the source.
+            data_tests: [not_null]
+          - name: value
