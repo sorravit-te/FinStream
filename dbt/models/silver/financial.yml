@@ -10,8 +10,9 @@ models:
       ingested_at descending, then run_id, loaded_at, and source_row_number
       descending for deterministic tie-breaking. SEC taxonomy, concept, unit,
       reported values, filing context, and source precision are retained.
-      Canonical FinStream financial metric mapping is deferred. Fiscal periods
-      are retained as reported and are not converted to calendar quarters.
+      Canonical FinStream financial metric mapping is applied only in Gold from
+      a curated mapping contract. Fiscal periods are retained as reported and
+      are not converted to calendar quarters.
     columns:
       - name: cik
         description: SEC Central Index Key identifying the company.

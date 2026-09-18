@@ -11,8 +11,8 @@ models:
       realtime_start and realtime_end contexts remain distinct. The nullable
       source value and its NUMERIC(76,30) precision are preserved. V1 does not
       claim complete historical vintage coverage unless ingestion explicitly
-      retrieved it. Selecting one current canonical value per series and
-      observation date is deferred to Gold fact_macro_observation.
+      retrieved it. Gold fact_macro_observation selects one current canonical
+      value per series and observation date.
     columns:
       - name: series_id
         description: FRED identifier for the observed series.

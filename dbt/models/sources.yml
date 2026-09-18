@@ -23,10 +23,15 @@ sources:
             description: Identifier for this ingestion run within its source and dataset.
             data_tests: [not_null]
           - name: ingested_at
+            description: Timestamp at which FinStream ingested this source dataset run.
           - name: raw_json_path
+            description: Canonical Bronze raw JSON artifact path for this source dataset run.
           - name: parquet_path
+            description: Canonical Bronze Parquet artifact path for this source dataset run.
           - name: record_count
+            description: Number of source records loaded for this dataset run.
           - name: loaded_at
+            description: Timestamp at which this source dataset run was loaded into PostgreSQL.
 
       - name: market_daily_prices
         description: >-
@@ -49,12 +54,18 @@ sources:
             description: Market symbol as supplied by the source.
             data_tests: [not_null]
           - name: trading_date
+            description: Trading date reported by the market source.
             data_tests: [not_null]
           - name: open
+            description: Source opening price at the loaded PostgreSQL numeric precision.
           - name: high
+            description: Source high price at the loaded PostgreSQL numeric precision.
           - name: low
+            description: Source low price at the loaded PostgreSQL numeric precision.
           - name: close
+            description: Source closing price at the loaded PostgreSQL numeric precision.
           - name: volume
+            description: Source trading volume; null is retained when the provider supplies no value.
 
       - name: sec_submissions
         description: >-
@@ -77,22 +88,36 @@ sources:
             description: SEC Central Index Key identifying the company.
             data_tests: [not_null]
           - name: company_name
+            description: Company name as reported by the SEC filing-submissions source.
           - name: accession_number
             description: SEC accession identifier for the filing.
             data_tests: [not_null]
           - name: filing_date
+            description: SEC filing date reported for the submission.
           - name: report_date
+            description: SEC report-period date reported for the submission, when supplied.
           - name: acceptance_datetime
+            description: SEC filing acceptance timestamp, when supplied.
           - name: form
+            description: SEC filing form type.
           - name: act
+            description: SEC Securities Act reference, when supplied.
           - name: file_number
+            description: SEC file number, when supplied.
           - name: film_number
+            description: SEC film number, when supplied.
           - name: items
+            description: SEC filing item codes, when supplied.
           - name: size
+            description: Reported SEC filing size, when supplied.
           - name: is_xbrl
+            description: Whether the submission is identified by the SEC as XBRL.
           - name: is_inline_xbrl
+            description: Whether the submission is identified by the SEC as inline XBRL.
           - name: primary_document
+            description: SEC primary document filename, when supplied.
           - name: primary_doc_description
+            description: SEC description of the primary document, when supplied.
 
       - name: sec_company_facts
         description: >-
@@ -115,6 +140,7 @@ sources:
             description: SEC Central Index Key identifying the company.
             data_tests: [not_null]
           - name: entity_name
+            description: Company name carried by the SEC Company Facts response.
           - name: taxonomy
             description: SEC XBRL taxonomy containing the source concept.
             data_tests: [not_null]
@@ -122,21 +148,31 @@ sources:
             description: Source XBRL concept name; no canonical metric mapping is applied here.
             data_tests: [not_null]
           - name: label
+            description: SEC-provided label for the source XBRL concept, when supplied.
           - name: description
+            description: SEC-provided description for the source XBRL concept, when supplied.
           - name: unit
             description: Unit reported for the source fact.
             data_tests: [not_null]
           - name: value
+            description: Reported SEC fact value at the loaded PostgreSQL numeric precision.
           - name: start_date
+            description: Source reporting-period start date; null is retained for instant facts.
           - name: end_date
+            description: Source reporting-period end date.
           - name: accession_number
             description: SEC accession identifier for the filing associated with the fact.
             data_tests: [not_null]
           - name: fiscal_year
+            description: SEC-provided fiscal year, when supplied.
           - name: fiscal_period
+            description: SEC-provided fiscal period label, when supplied.
           - name: form
+            description: SEC filing form associated with the source fact.
           - name: filed_date
+            description: SEC filing date associated with the source fact.
           - name: frame
+            description: SEC-provided reporting frame label, when supplied.
 
       - name: fred_series_metadata
         description: >-
@@ -165,17 +201,29 @@ sources:
             description: End of the source real-time interval recorded for this row.
             data_tests: [not_null]
           - name: title
+            description: FRED series title captured for this source metadata record.
           - name: observation_start
+            description: Earliest observation date reported by FRED for the series.
           - name: observation_end
+            description: Latest observation date reported by FRED for the series.
           - name: frequency
+            description: FRED frequency label for the series.
           - name: frequency_short
+            description: FRED abbreviated frequency label for the series.
           - name: units
+            description: FRED units label for the series.
           - name: units_short
+            description: FRED abbreviated units label for the series.
           - name: seasonal_adjustment
+            description: FRED seasonal-adjustment label for the series.
           - name: seasonal_adjustment_short
+            description: FRED abbreviated seasonal-adjustment label for the series.
           - name: last_updated
+            description: Timestamp when FRED last reported updating the series metadata.
           - name: popularity
+            description: FRED-reported series popularity value, when supplied.
           - name: notes
+            description: FRED series notes, when supplied.
 
       - name: fred_series_observations
         description: >-
@@ -207,3 +255,4 @@ sources:
             description: Observation date reported by the source.
             data_tests: [not_null]
           - name: value
+            description: FRED observation value at the loaded PostgreSQL numeric precision; null is retained for a valid source missing-value marker.
