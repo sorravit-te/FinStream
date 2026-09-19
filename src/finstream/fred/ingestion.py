@@ -1,9 +1,11 @@
 """Application service for retrieving and parsing FRED source data."""
 
 from collections.abc import Iterable
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
+
+import psycopg
 
 from finstream.bronze.json_storage import raw_json_path, write_raw_json
 from finstream.bronze.models import BronzeRunLocation
@@ -28,7 +30,11 @@ from finstream.fred.parsing import (
     parse_series_metadata,
     parse_series_observations,
 )
+from finstream.fred.postgres import latest_fred_observation_date
 from finstream.fred.series import INITIAL_FRED_SERIES_IDS
+
+
+FRED_INCREMENTAL_OVERLAP_DAYS = 365
 
 
 def _normalize_series_id(series_id: str) -> str:
@@ -56,6 +62,25 @@ def _validate_ranges(
         and realtime_start > realtime_end
     ):
         raise ValueError("Realtime start must not be after realtime end")
+
+
+def fred_incremental_observation_start_date(
+    latest_observation_date: date | None,
+    *,
+    overlap_days: int = FRED_INCREMENTAL_OVERLAP_DAYS,
+) -> date | None:
+    """Return a calendar-day lower bound for incremental FRED observations."""
+    if latest_observation_date is None:
+        return None
+    if isinstance(latest_observation_date, datetime) or not isinstance(
+        latest_observation_date, date
+    ):
+        raise ValueError("Latest observation date must be a date or None")
+    if isinstance(overlap_days, bool) or not isinstance(overlap_days, int):
+        raise ValueError("FRED incremental overlap days must be an integer")
+    if overlap_days < 0:
+        raise ValueError("FRED incremental overlap days must not be negative")
+    return latest_observation_date - timedelta(days=overlap_days)
 
 
 class FredMacroeconomicIngestionService:
@@ -212,6 +237,42 @@ class FredMacroeconomicIngestionService:
             series_id=normalized_id,
             metadata=metadata,
             observations=observations,
+        )
+
+    def ingest_series_incrementally_to_bronze(
+        self,
+        connection: psycopg.Connection,
+        series_id: str,
+        *,
+        run_at: datetime,
+        bronze_root: str | Path = DEFAULT_BRONZE_ROOT,
+        observation_start: date | None = None,
+        observation_end: date | None = None,
+        realtime_start: date | None = None,
+        realtime_end: date | None = None,
+    ) -> FredSeriesBronzeResult:
+        """Create a full-metadata and bounded-observations FRED Bronze run."""
+        normalized_id = _normalize_series_id(series_id)
+        _validate_ranges(
+            observation_start=observation_start,
+            observation_end=observation_end,
+            realtime_start=realtime_start,
+            realtime_end=realtime_end,
+        )
+
+        if observation_start is None and observation_end is None:
+            observation_start = fred_incremental_observation_start_date(
+                latest_fred_observation_date(connection, normalized_id)
+            )
+
+        return self.ingest_series_to_bronze(
+            normalized_id,
+            run_at=run_at,
+            bronze_root=bronze_root,
+            observation_start=observation_start,
+            observation_end=observation_end,
+            realtime_start=realtime_start,
+            realtime_end=realtime_end,
         )
 
     def ingest_series_ids(

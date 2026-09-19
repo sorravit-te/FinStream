@@ -245,6 +245,37 @@ def test_exact_sec_submissions_replay_is_a_verified_no_op(tmp_path: Path) -> Non
     _assert_caller_owns_transaction(connection)
 
 
+def test_different_submission_runs_preserve_a_corrected_accession(
+    tmp_path: Path,
+) -> None:
+    original = _result(
+        tmp_path / "original",
+        dataset=SEC_SUBMISSIONS_BRONZE_DATASET,
+        table=_table(SEC_SUBMISSIONS_BRONZE_DATASET, _submission_rows()),
+    )
+    corrected_rows = _submission_rows()
+    corrected_rows[0]["company_name"] = "Apple Inc. corrected"
+    corrected = _result(
+        tmp_path / "corrected",
+        dataset=SEC_SUBMISSIONS_BRONZE_DATASET,
+        table=_table(SEC_SUBMISSIONS_BRONZE_DATASET, corrected_rows),
+        run_at=_RUN_AT + timedelta(seconds=1),
+    )
+    connection, _, cursor = _mock_connection()
+    cursor.fetchone.side_effect = [(1,), (1,)]
+
+    assert load_sec_submissions_bronze_to_postgres(connection, original) == 2
+    assert load_sec_submissions_bronze_to_postgres(connection, corrected) == 2
+
+    original_rows = list(cursor.executemany.call_args_list[0].args[1])
+    corrected_rows = list(cursor.executemany.call_args_list[1].args[1])
+    assert original_rows[0][2] != corrected_rows[0][2]
+    assert original_rows[0][6] == corrected_rows[0][6]
+    assert original_rows[0][5] == "Apple Inc."
+    assert corrected_rows[0][5] == "Apple Inc. corrected"
+    _assert_caller_owns_transaction(connection)
+
+
 def test_loads_zero_row_submissions_registry_only(tmp_path: Path) -> None:
     result = _result(tmp_path, dataset=SEC_SUBMISSIONS_BRONZE_DATASET)
     connection, _, cursor = _mock_connection()
@@ -295,6 +326,37 @@ def test_exact_sec_company_facts_replay_is_a_verified_no_op(tmp_path: Path) -> N
 
     assert cursor.execute.call_count == 3
     cursor.executemany.assert_not_called()
+
+
+def test_different_company_fact_runs_preserve_a_revised_analytical_grain(
+    tmp_path: Path,
+) -> None:
+    original = _result(
+        tmp_path / "original",
+        dataset=SEC_COMPANY_FACTS_BRONZE_DATASET,
+        table=_table(SEC_COMPANY_FACTS_BRONZE_DATASET, _company_fact_rows()),
+    )
+    revised_rows = _company_fact_rows()
+    revised_rows[0]["value"] = Decimal("123457.123456789012345678901234567890")
+    revised = _result(
+        tmp_path / "revised",
+        dataset=SEC_COMPANY_FACTS_BRONZE_DATASET,
+        table=_table(SEC_COMPANY_FACTS_BRONZE_DATASET, revised_rows),
+        run_at=_RUN_AT + timedelta(seconds=1),
+    )
+    connection, _, cursor = _mock_connection()
+    cursor.fetchone.side_effect = [(1,), (1,)]
+
+    assert load_sec_company_facts_bronze_to_postgres(connection, original) == 2
+    assert load_sec_company_facts_bronze_to_postgres(connection, revised) == 2
+
+    original_rows = list(cursor.executemany.call_args_list[0].args[1])
+    revised_rows = list(cursor.executemany.call_args_list[1].args[1])
+    assert original_rows[0][2] != revised_rows[0][2]
+    assert original_rows[0][4:11] == revised_rows[0][4:11]
+    assert original_rows[0][12:20] == revised_rows[0][12:20]
+    assert original_rows[0][11] != revised_rows[0][11]
+    _assert_caller_owns_transaction(connection)
 
 
 def test_loads_zero_row_company_facts_registry_only(tmp_path: Path) -> None:

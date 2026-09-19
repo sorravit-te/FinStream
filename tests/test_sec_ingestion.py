@@ -103,6 +103,33 @@ def test_ingests_complete_company_in_exact_request_order() -> None:
     assert result.company_facts.entity_name == "Apple Inc."
 
 
+def test_repeated_sec_refreshes_request_current_source_again() -> None:
+    client = Mock(spec=SecEdgarClient)
+    client.fetch_submissions.side_effect = [
+        _submissions_payload(name="Apple Inc. (before correction)"),
+        _submissions_payload(name="Apple Inc. (corrected)"),
+    ]
+    client.fetch_company_facts.side_effect = [
+        _company_facts_payload(entity_name="Apple Inc. (before correction)"),
+        _company_facts_payload(entity_name="Apple Inc. (corrected)"),
+    ]
+    service = SecFinancialIngestionService(client, request_delay_seconds=0)
+
+    first = service.ingest_company(320193)
+    second = service.ingest_company(320193)
+
+    assert client.method_calls == [
+        call.fetch_submissions("0000320193"),
+        call.fetch_company_facts("0000320193"),
+        call.fetch_submissions("0000320193"),
+        call.fetch_company_facts("0000320193"),
+    ]
+    assert first.submissions.company_name == "Apple Inc. (before correction)"
+    assert second.submissions.company_name == "Apple Inc. (corrected)"
+    assert first.company_facts.entity_name == "Apple Inc. (before correction)"
+    assert second.company_facts.entity_name == "Apple Inc. (corrected)"
+
+
 def test_default_pacing_occurs_between_complete_company_requests() -> None:
     events: list[object] = []
     client = Mock(spec=SecEdgarClient)

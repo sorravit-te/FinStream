@@ -35,16 +35,25 @@ is therefore append-oriented.
 
 | Dataset | Logical identity / analytical grain | Cross-run behavior | Incremental strategy |
 | --- | --- | --- | --- |
-| Twelve Data `daily_market_prices` | `(symbol, trading_date)` | Repeated identities are retained; Silver selects the latest representation. | Candidate: per-symbol `max(trading_date)` with approved overlap and gap handling. |
+| Twelve Data `daily_market_prices` | `(symbol, trading_date)` | Repeated identities are retained; Silver selects the latest representation. | Automatic ingestion uses the per-symbol PostgreSQL `max(trading_date)` minus a three-calendar-day overlap; no history keeps the unbounded bootstrap fetch, and explicit ranges take precedence. |
 | FRED `series_metadata` | `series_id` identifies a mutable metadata snapshot. | New runs may retain another snapshot for the series. | Full metadata fetch remains appropriate; returned timestamps are change signals, not request cursors. |
-| FRED `series_observations` | `(series_id, observation_date, realtime_start, realtime_end)` | Repeated contexts are retained; Silver selects the latest representation and Gold selects the latest context per series/date. | Candidate: per-series maximum observation date with overlap/refetch while retaining real-time context. |
-| SEC EDGAR `submissions` | `(cik, accession_number)` | Repeated filings may be retained across runs. | Current endpoint use is full/current retrieval, not safely bounded retrieval. |
-| SEC EDGAR `company_facts` | Current analytical deduplication grain: `(cik, taxonomy, concept, unit, start_date, end_date, accession_number, fiscal_year, fiscal_period, form, filed_date, frame)` | Flattened occurrences are retained; Silver selects the latest representation. | Full refetch plus revision-aware reconciliation is the safest current approach. |
+| FRED `series_observations` | `(series_id, observation_date, realtime_start, realtime_end)` | Repeated contexts are retained; Silver selects the latest representation and Gold selects the latest context per series/date. | Automatic ingestion uses the per-series PostgreSQL `max(observation_date)` minus a 365-calendar-day overlap; no history keeps full retrieval, while explicit observation bounds take precedence. Omitted real-time bounds retain FRED's current-vintage defaults. |
+| SEC EDGAR `submissions` | `(cik, accession_number)` | Repeated filings may be retained across runs. | Full/current refresh of the implemented `filings.recent` source scope; the project does not follow supplemental `filings.files` responses. No date or accession watermark is safe for corrections or removals. |
+| SEC EDGAR `company_facts` | Current analytical deduplication grain: `(cik, taxonomy, concept, unit, start_date, end_date, accession_number, fiscal_year, fiscal_period, form, filed_date, frame)` | Flattened occurrences are retained; Silver selects the latest representation. | Full current Company Facts response for each requested CIK; no bounded request parameter or PostgreSQL watermark is used. |
 
 The Company Facts grain is an analytical deduplication grain, not a proven
 globally complete XBRL fact identity. The source-aligned schema lacks an XBRL
 context identifier and dimensional qualifiers, so the represented tuple cannot
 prove uniqueness for every possible XBRL occurrence.
+
+SEC refreshes do not treat an accession number, filing date, fact end date, or
+ingestion timestamp as a source-change cursor. A later current response is
+written as a new immutable run so corrected representations remain available.
+The current Company Facts Silver model resolves repeated represented rows, but
+it is not snapshot-aware: without a recorded complete-snapshot boundary per
+CIK, a source disappearance cannot safely invalidate an older represented row.
+The submissions scope is only `filings.recent`, so it likewise cannot establish
+historical absence or removal. No tombstones or removal inference are produced.
 
 ## Bronze Semantics
 
@@ -111,8 +120,14 @@ rules.
 - Providers can revise values under the same logical identity; global
   insert-ignore behavior would lose revisions.
 - Append-only snapshots alone do not represent source removals or withdrawals.
+- SEC refreshes preserve corrections through distinct runs, but current source
+  scope and run metadata cannot safely interpret an absent submission or fact
+  as a deletion.
 - FRED `observation_date` is neither a revision nor publication watermark.
-- Maximum-date watermarks do not prove gap-free completeness.
+- Maximum-date watermarks do not prove gap-free completeness; explicit Market
+  date ranges and full or explicit FRED refetches remain manual backfill paths.
+- The finite FRED overlap can capture recent revisions but cannot detect deep
+  historical revisions outside the requested observation window.
 - A zero-row ingestion run cannot currently be attributed from the registry
   alone to a requested symbol, CIK, or FRED series.
 - Partial Bronze/raw-only states require explicit recovery behavior; automatic

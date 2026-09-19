@@ -1,6 +1,7 @@
 """Load validated Market Bronze Parquet runs into PostgreSQL source tables."""
 
 from collections.abc import Iterable
+from datetime import date
 
 import psycopg
 import pyarrow as pa
@@ -51,9 +52,43 @@ _INSERT_MARKET_DAILY_PRICE = """
     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
+_SELECT_LATEST_MARKET_TRADING_DATE = """
+    SELECT max(trading_date)
+    FROM source_data.market_daily_prices
+    WHERE source = %s AND dataset = %s AND symbol = %s
+"""
+
 
 class MarketPostgresLoadError(ValueError):
     """Raised when a Market Bronze result cannot be loaded safely."""
+
+
+def latest_market_trading_date(
+    connection: psycopg.Connection,
+    symbol: str,
+) -> date | None:
+    """Return the latest source-aligned Market date for one canonical symbol."""
+    if not isinstance(symbol, str) or not symbol.strip():
+        raise MarketPostgresLoadError("Market symbol must not be blank")
+    normalized_symbol = symbol.strip().upper()
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            _SELECT_LATEST_MARKET_TRADING_DATE,
+            (MARKET_BRONZE_SOURCE, MARKET_BRONZE_DATASET, normalized_symbol),
+        )
+        row = cursor.fetchone()
+
+    if row is None:
+        raise MarketPostgresLoadError(
+            "Market trading-date watermark query returned no row"
+        )
+    latest_trading_date = row[0]
+    if latest_trading_date is not None and not isinstance(latest_trading_date, date):
+        raise MarketPostgresLoadError(
+            "Market trading-date watermark query returned an invalid date"
+        )
+    return latest_trading_date
 
 
 def _validated_table(result: MarketBronzeResult) -> pa.Table:

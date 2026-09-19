@@ -46,13 +46,47 @@ class TwelveDataClient:
         if start_date is not None and end_date is not None and start_date > end_date:
             raise ValueError("Start date must not be after end date")
 
+        return self._fetch_daily_time_series(
+            symbol,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+    def fetch_daily_time_series_since(
+        self,
+        symbol: str,
+        *,
+        start_date: date,
+    ) -> dict[str, Any]:
+        """Return daily records from a lower date bound through provider latest."""
+        if not isinstance(start_date, date):
+            raise ValueError("Start date must be a date")
+
+        return self._fetch_daily_time_series(
+            symbol,
+            start_date=start_date,
+            end_date=None,
+        )
+
+    def _fetch_daily_time_series(
+        self,
+        symbol: str,
+        *,
+        start_date: date | None,
+        end_date: date | None,
+    ) -> dict[str, Any]:
+        """Issue one validated daily time-series request."""
+        if not isinstance(symbol, str) or not symbol.strip():
+            raise ValueError("Symbol must not be blank")
+
         params = {
             "symbol": symbol.strip().upper(),
             "interval": "1day",
             "apikey": self._api_key,
         }
-        if start_date is not None and end_date is not None:
+        if start_date is not None:
             params["start_date"] = start_date.isoformat()
+        if end_date is not None:
             params["end_date"] = end_date.isoformat()
 
         try:

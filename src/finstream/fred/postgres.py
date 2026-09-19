@@ -2,6 +2,7 @@
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import date
 
 import psycopg
 import pyarrow as pa
@@ -79,9 +80,49 @@ _INSERT_FRED_OBSERVATION = """
     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
 """
 
+_SELECT_LATEST_FRED_OBSERVATION_DATE = """
+    SELECT max(observation_date)
+    FROM source_data.fred_series_observations
+    WHERE source = %s AND dataset = %s AND series_id = %s
+"""
+
 
 class FredPostgresLoadError(ValueError):
     """Raised when FRED Bronze data violates the loading contract."""
+
+
+def latest_fred_observation_date(
+    connection: psycopg.Connection,
+    series_id: str,
+) -> date | None:
+    """Return the latest source-aligned observation date for one FRED series."""
+    if not isinstance(series_id, str) or not series_id.strip():
+        raise FredPostgresLoadError("FRED series ID must not be blank")
+    normalized_series_id = series_id.strip()
+
+    with connection.cursor() as cursor:
+        cursor.execute(
+            _SELECT_LATEST_FRED_OBSERVATION_DATE,
+            (
+                FRED_BRONZE_SOURCE,
+                FRED_SERIES_OBSERVATIONS_BRONZE_DATASET,
+                normalized_series_id,
+            ),
+        )
+        row = cursor.fetchone()
+
+    if row is None:
+        raise FredPostgresLoadError(
+            "FRED observation-date watermark query returned no row"
+        )
+    latest_observation_date = row[0]
+    if latest_observation_date is not None and not isinstance(
+        latest_observation_date, date
+    ):
+        raise FredPostgresLoadError(
+            "FRED observation-date watermark query returned an invalid date"
+        )
+    return latest_observation_date
 
 
 @dataclass(frozen=True)

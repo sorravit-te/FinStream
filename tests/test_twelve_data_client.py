@@ -41,6 +41,29 @@ def test_constructs_daily_time_series_request() -> None:
     assert result is payload
 
 
+def test_constructs_lower_bound_only_daily_time_series_request() -> None:
+    payload = {"status": "ok", "values": []}
+    session, _ = _mock_session(payload)
+    client = TwelveDataClient("test-key", session=session, timeout_seconds=9.5)
+
+    result = client.fetch_daily_time_series_since(
+        " aapl ",
+        start_date=date(2026, 9, 15),
+    )
+
+    session.get.assert_called_once_with(
+        "https://api.twelvedata.com/time_series",
+        params={
+            "symbol": "AAPL",
+            "interval": "1day",
+            "apikey": "test-key",
+            "start_date": "2026-09-15",
+        },
+        timeout=9.5,
+    )
+    assert result is payload
+
+
 @pytest.mark.parametrize(
     ("start_date", "end_date"),
     [
