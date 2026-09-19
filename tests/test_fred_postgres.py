@@ -117,7 +117,43 @@ def _mock_connection() -> tuple[MagicMock, MagicMock, MagicMock]:
     connection = MagicMock(spec=psycopg.Connection)
     cursor_context = connection.cursor.return_value
     cursor = cursor_context.__enter__.return_value
+    cursor.fetchone.return_value = (1,)
     return connection, cursor_context, cursor
+
+
+def _configure_combined_first_load(cursor: MagicMock) -> None:
+    cursor.fetchone.side_effect = [None, None, (1,), (1,)]
+
+
+def _registry_row(result: FredBronzeDatasetResult) -> tuple[object, ...]:
+    metadata = result.location.metadata
+    return (
+        metadata.source,
+        metadata.dataset,
+        metadata.run_id,
+        metadata.ingested_at,
+        str(result.raw_json_path),
+        str(result.parquet_path),
+        result.record_count,
+    )
+
+
+def _configure_verified_replay(
+    cursor: MagicMock,
+    result: FredBronzeDatasetResult,
+    *,
+    source_row_count: int | None = None,
+    registry_row: tuple[object, ...] | None = None,
+) -> None:
+    cursor.fetchone.side_effect = [
+        None,
+        _registry_row(result) if registry_row is None else registry_row,
+        (
+            result.record_count
+            if source_row_count is None
+            else source_row_count,
+        ),
+    ]
 
 
 def _assert_caller_owns_transaction(connection: MagicMock) -> None:
@@ -154,6 +190,33 @@ def test_loads_exactly_one_metadata_row_with_timezone_and_nulls(tmp_path: Path) 
     assert row_values[-1] is None
     cursor.executemany.assert_not_called()
     _assert_caller_owns_transaction(connection)
+
+
+def test_exact_fred_metadata_replay_is_a_verified_no_op(tmp_path: Path) -> None:
+    result = _result(tmp_path, dataset=FRED_SERIES_METADATA_BRONZE_DATASET)
+    connection, _, cursor = _mock_connection()
+    _configure_verified_replay(cursor, result)
+
+    assert load_fred_metadata_bronze_to_postgres(connection, result) == 1
+
+    assert cursor.execute.call_count == 3
+    cursor.executemany.assert_not_called()
+    _assert_caller_owns_transaction(connection)
+
+
+def test_exact_fred_observations_replay_is_a_verified_no_op(tmp_path: Path) -> None:
+    result = _result(
+        tmp_path,
+        dataset=FRED_SERIES_OBSERVATIONS_BRONZE_DATASET,
+        table=_table(FRED_SERIES_OBSERVATIONS_BRONZE_DATASET, _observation_rows()),
+    )
+    connection, _, cursor = _mock_connection()
+    _configure_verified_replay(cursor, result)
+
+    assert load_fred_observations_bronze_to_postgres(connection, result) == 2
+
+    assert cursor.execute.call_count == 3
+    cursor.executemany.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -377,6 +440,7 @@ def test_combined_load_preflights_both_then_uses_one_cursor_in_order(
 
     monkeypatch.setattr(fred_postgres, "read_parquet", read_with_event)
     connection, _, cursor = _mock_connection()
+    _configure_combined_first_load(cursor)
     connection.cursor.side_effect = lambda: (
         events.append("cursor") or MagicMock(
             __enter__=MagicMock(return_value=cursor),
@@ -390,11 +454,10 @@ def test_combined_load_preflights_both_then_uses_one_cursor_in_order(
     ) == FredPostgresLoadResult(1, 2)
 
     assert events == ["read", "read", "cursor"]
-    assert [entry.args[0] for entry in cursor.execute.call_args_list] == [
-        fred_postgres._INSERT_INGESTION_RUN,
-        fred_postgres._INSERT_FRED_METADATA,
-        fred_postgres._INSERT_INGESTION_RUN,
-    ]
+    assert cursor.execute.call_count == 5
+    assert cursor.execute.call_args_list[2].args[0] == fred_postgres._INSERT_INGESTION_RUN
+    assert cursor.execute.call_args_list[3].args[0] == fred_postgres._INSERT_INGESTION_RUN
+    assert cursor.execute.call_args_list[4].args[0] == fred_postgres._INSERT_FRED_METADATA
     assert cursor.executemany.call_args.args[0] == fred_postgres._INSERT_FRED_OBSERVATION
     _assert_caller_owns_transaction(connection)
 
@@ -405,13 +468,76 @@ def test_combined_load_with_zero_observations_registers_both_datasets(
     metadata = _result(tmp_path, dataset=FRED_SERIES_METADATA_BRONZE_DATASET)
     observations = _result(tmp_path, dataset=FRED_SERIES_OBSERVATIONS_BRONZE_DATASET)
     connection, _, cursor = _mock_connection()
+    _configure_combined_first_load(cursor)
 
     assert load_fred_series_bronze_to_postgres(
         connection,
         FredSeriesBronzeResult(_SERIES_ID, metadata, observations),
     ) == FredPostgresLoadResult(1, 0)
 
-    assert cursor.execute.call_args_list[2].args[1][-1] == 0
+    assert cursor.execute.call_args_list[3].args[1][-1] == 0
+    cursor.executemany.assert_not_called()
+
+
+def test_combined_fred_replay_verifies_both_datasets_without_writes(
+    tmp_path: Path,
+) -> None:
+    metadata = _result(tmp_path, dataset=FRED_SERIES_METADATA_BRONZE_DATASET)
+    observations = _result(
+        tmp_path,
+        dataset=FRED_SERIES_OBSERVATIONS_BRONZE_DATASET,
+        table=_table(FRED_SERIES_OBSERVATIONS_BRONZE_DATASET, _observation_rows()),
+    )
+    connection, _, cursor = _mock_connection()
+    cursor.fetchone.side_effect = [
+        _registry_row(metadata),
+        (metadata.record_count,),
+        _registry_row(observations),
+        (observations.record_count,),
+    ]
+
+    assert load_fred_series_bronze_to_postgres(
+        connection,
+        FredSeriesBronzeResult(_SERIES_ID, metadata, observations),
+    ) == FredPostgresLoadResult(1, 2)
+
+    assert cursor.execute.call_count == 4
+    cursor.executemany.assert_not_called()
+
+
+def test_combined_fred_rejects_mixed_committed_state_without_writes(
+    tmp_path: Path,
+) -> None:
+    metadata = _result(tmp_path, dataset=FRED_SERIES_METADATA_BRONZE_DATASET)
+    observations = _result(tmp_path, dataset=FRED_SERIES_OBSERVATIONS_BRONZE_DATASET)
+    connection, _, cursor = _mock_connection()
+    cursor.fetchone.side_effect = [_registry_row(metadata), (1,), None]
+
+    with pytest.raises(FredPostgresLoadError, match="partially committed"):
+        load_fred_series_bronze_to_postgres(
+            connection,
+            FredSeriesBronzeResult(_SERIES_ID, metadata, observations),
+        )
+
+    cursor.executemany.assert_not_called()
+
+
+def test_combined_fred_rejects_inconsistent_committed_state_without_writes(
+    tmp_path: Path,
+) -> None:
+    metadata = _result(tmp_path, dataset=FRED_SERIES_METADATA_BRONZE_DATASET)
+    observations = _result(tmp_path, dataset=FRED_SERIES_OBSERVATIONS_BRONZE_DATASET)
+    mismatched_metadata = list(_registry_row(metadata))
+    mismatched_metadata[-1] = 99
+    connection, _, cursor = _mock_connection()
+    cursor.fetchone.side_effect = [tuple(mismatched_metadata)]
+
+    with pytest.raises(FredPostgresLoadError, match="record_count"):
+        load_fred_series_bronze_to_postgres(
+            connection,
+            FredSeriesBronzeResult(_SERIES_ID, metadata, observations),
+        )
+
     cursor.executemany.assert_not_called()
 
 
@@ -462,18 +588,31 @@ def test_database_failures_propagate_without_transaction_control(tmp_path: Path)
     _assert_caller_owns_transaction(connection)
 
     connection, _, cursor = _mock_connection()
-    cursor.execute.side_effect = [None, psycopg.OperationalError("metadata row")]
+    _configure_combined_first_load(cursor)
+    cursor.execute.side_effect = [
+        None,
+        None,
+        None,
+        None,
+        psycopg.OperationalError("metadata row"),
+    ]
     with pytest.raises(psycopg.OperationalError, match="metadata row"):
         load_fred_series_bronze_to_postgres(
             connection,
             FredSeriesBronzeResult(_SERIES_ID, metadata, observations),
         )
-    assert cursor.execute.call_count == 2
+    assert cursor.execute.call_count == 5
     cursor.executemany.assert_not_called()
     _assert_caller_owns_transaction(connection)
 
     connection, _, cursor = _mock_connection()
-    cursor.execute.side_effect = [None, None, psycopg.OperationalError("observations registry")]
+    _configure_combined_first_load(cursor)
+    cursor.execute.side_effect = [
+        None,
+        None,
+        None,
+        psycopg.OperationalError("observations registry"),
+    ]
     with pytest.raises(psycopg.OperationalError, match="observations registry"):
         load_fred_series_bronze_to_postgres(
             connection,
@@ -483,22 +622,22 @@ def test_database_failures_propagate_without_transaction_control(tmp_path: Path)
     _assert_caller_owns_transaction(connection)
 
     connection, _, cursor = _mock_connection()
+    _configure_combined_first_load(cursor)
     cursor.executemany.side_effect = psycopg.OperationalError("observation rows")
     with pytest.raises(psycopg.OperationalError, match="observation rows"):
         load_fred_series_bronze_to_postgres(
             connection,
             FredSeriesBronzeResult(_SERIES_ID, metadata, observations),
         )
-    assert cursor.execute.call_count == 3
+    assert cursor.execute.call_count == 5
     _assert_caller_owns_transaction(connection)
 
 
-def test_loader_has_no_duplicate_or_provider_policy() -> None:
+def test_loader_uses_exact_run_conflict_handling_without_provider_dependency() -> None:
     source = Path(fred_postgres.__file__).read_text(encoding="utf-8").upper()
 
-    assert "ON CONFLICT" not in source
+    assert "ON CONFLICT (SOURCE, DATASET, RUN_ID) DO NOTHING" in source
     assert "MERGE" not in source
-    assert "SELECT" not in source
     assert "FREDCLIENT" not in source
 
 

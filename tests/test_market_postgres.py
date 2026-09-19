@@ -53,12 +53,13 @@ def _result(
     symbol: str = "AAPL",
     records: list[DailyMarketPrice] | None = None,
     table: pa.Table | None = None,
+    run_at: datetime = _RUN_AT,
 ) -> MarketBronzeResult:
     location = BronzeRunLocation.from_run(
         root=tmp_path / "bronze",
         source=source,
         dataset=dataset,
-        ingested_at=_RUN_AT,
+        ingested_at=run_at,
     )
     write_raw_json(location, {"source": source, "dataset": dataset})
     persisted_table = (
@@ -79,6 +80,7 @@ def _mock_connection() -> tuple[MagicMock, MagicMock, MagicMock]:
     connection = MagicMock(spec=psycopg.Connection)
     cursor_context = connection.cursor.return_value
     cursor = cursor_context.__enter__.return_value
+    cursor.fetchone.return_value = (1,)
     return connection, cursor_context, cursor
 
 
@@ -86,6 +88,37 @@ def _assert_caller_owns_transaction(connection: MagicMock) -> None:
     connection.commit.assert_not_called()
     connection.rollback.assert_not_called()
     connection.close.assert_not_called()
+
+
+def _registry_row(result: MarketBronzeResult) -> tuple[object, ...]:
+    metadata = result.location.metadata
+    return (
+        metadata.source,
+        metadata.dataset,
+        metadata.run_id,
+        metadata.ingested_at,
+        str(result.raw_json_path),
+        str(result.parquet_path),
+        result.record_count,
+    )
+
+
+def _configure_verified_replay(
+    cursor: MagicMock,
+    result: MarketBronzeResult,
+    *,
+    source_row_count: int | None = None,
+    registry_row: tuple[object, ...] | None = None,
+) -> None:
+    cursor.fetchone.side_effect = [
+        None,
+        _registry_row(result) if registry_row is None else registry_row,
+        (
+            result.record_count
+            if source_row_count is None
+            else source_row_count,
+        ),
+    ]
 
 
 def test_loads_non_empty_market_bronze_in_source_order_with_decimal_values(
@@ -163,6 +196,75 @@ def test_loads_valid_zero_row_run_without_market_executemany(tmp_path: Path) -> 
     assert cursor.execute.call_args.args[1][-1] == 0
     cursor.executemany.assert_not_called()
     _assert_caller_owns_transaction(connection)
+
+
+def test_exact_non_empty_market_replay_is_a_verified_no_op(tmp_path: Path) -> None:
+    result = _result(tmp_path, records=[_record()])
+    connection, _, cursor = _mock_connection()
+    _configure_verified_replay(cursor, result)
+
+    assert load_market_bronze_to_postgres(connection, result) == 1
+
+    assert cursor.execute.call_count == 3
+    cursor.executemany.assert_not_called()
+    _assert_caller_owns_transaction(connection)
+
+
+def test_exact_zero_row_market_replay_is_a_verified_no_op(tmp_path: Path) -> None:
+    result = _result(tmp_path, records=[])
+    connection, _, cursor = _mock_connection()
+    _configure_verified_replay(cursor, result)
+
+    assert load_market_bronze_to_postgres(connection, result) == 0
+
+    assert cursor.execute.call_count == 3
+    cursor.executemany.assert_not_called()
+
+
+def test_market_replay_rejects_mismatched_registry_metadata(tmp_path: Path) -> None:
+    result = _result(tmp_path, records=[_record()])
+    registry_row = list(_registry_row(result))
+    registry_row[4] = "different/payload.json"
+    connection, _, cursor = _mock_connection()
+    _configure_verified_replay(cursor, result, registry_row=tuple(registry_row))
+
+    with pytest.raises(MarketPostgresLoadError, match="raw_json_path"):
+        load_market_bronze_to_postgres(connection, result)
+
+    cursor.executemany.assert_not_called()
+
+
+@pytest.mark.parametrize("source_row_count", [0, 2])
+def test_market_replay_rejects_inconsistent_source_row_count(
+    tmp_path: Path,
+    source_row_count: int,
+) -> None:
+    result = _result(tmp_path, records=[_record()])
+    connection, _, cursor = _mock_connection()
+    _configure_verified_replay(cursor, result, source_row_count=source_row_count)
+
+    with pytest.raises(MarketPostgresLoadError, match="source-row count"):
+        load_market_bronze_to_postgres(connection, result)
+
+    cursor.executemany.assert_not_called()
+
+
+def test_different_market_run_id_with_same_business_identity_remains_a_first_load(
+    tmp_path: Path,
+) -> None:
+    result = _result(
+        tmp_path,
+        records=[_record()],
+        run_at=_RUN_AT.replace(microsecond=_RUN_AT.microsecond + 1),
+    )
+    connection, _, cursor = _mock_connection()
+
+    assert load_market_bronze_to_postgres(connection, result) == 1
+
+    cursor.executemany.assert_called_once()
+    registry_sql = cursor.execute.call_args.args[0].upper()
+    assert "SYMBOL" not in registry_sql
+    assert "TRADING_DATE" not in registry_sql
 
 
 @pytest.mark.parametrize(
@@ -314,12 +416,11 @@ def test_market_database_error_propagates_with_registry_already_inserted(
     _assert_caller_owns_transaction(connection)
 
 
-def test_loader_has_no_application_level_duplicate_run_policy() -> None:
+def test_loader_uses_exact_run_conflict_handling_without_global_deduplication() -> None:
     source = Path(market_postgres.__file__).read_text(encoding="utf-8").upper()
 
-    assert "ON CONFLICT" not in source
+    assert "ON CONFLICT (SOURCE, DATASET, RUN_ID) DO NOTHING" in source
     assert "MERGE" not in source
-    assert "SELECT" not in source
 
 
 def test_market_postgres_module_avoids_other_provider_dependencies() -> None:

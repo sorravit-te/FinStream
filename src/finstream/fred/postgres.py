@@ -9,6 +9,13 @@ import pyarrow as pa
 from finstream.bronze.json_storage import raw_json_path
 from finstream.bronze.models import BronzeRunLocation
 from finstream.bronze.parquet_storage import parquet_path, read_parquet
+from finstream.database.replay import (
+    IngestionRun,
+    IngestionRunReplayError,
+    IngestionRunState,
+    inspect_ingestion_run,
+    register_or_verify_ingestion_run,
+)
 from finstream.fred.bronze import (
     FRED_BRONZE_SOURCE,
     FRED_SERIES_METADATA_BRONZE_DATASET,
@@ -30,6 +37,8 @@ _INSERT_INGESTION_RUN = """
         parquet_path,
         record_count
     ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+    ON CONFLICT (source, dataset, run_id) DO NOTHING
+    RETURNING 1
 """
 
 _INSERT_FRED_METADATA = """
@@ -151,19 +160,22 @@ def _preflight_dataset(
     return _PreparedFredDataset(result=result, table=table)
 
 
-def _ingestion_run_parameters(
+def _ingestion_run(
     prepared: _PreparedFredDataset,
-) -> tuple[object, ...]:
+    *,
+    source_table: str,
+) -> IngestionRun:
     result = prepared.result
     metadata = result.location.metadata
-    return (
-        metadata.source,
-        metadata.dataset,
-        metadata.run_id,
-        metadata.ingested_at,
-        str(result.raw_json_path),
-        str(result.parquet_path),
-        result.record_count,
+    return IngestionRun(
+        source=metadata.source,
+        dataset=metadata.dataset,
+        run_id=metadata.run_id,
+        ingested_at=metadata.ingested_at,
+        raw_json_path=str(result.raw_json_path),
+        parquet_path=str(result.parquet_path),
+        record_count=result.record_count,
+        source_table=source_table,
     )
 
 
@@ -213,19 +225,17 @@ def _observation_row_parameters(
         )
 
 
-def _load_prepared_metadata(
+def _insert_prepared_metadata(
     cursor: psycopg.Cursor,
     prepared: _PreparedFredDataset,
 ) -> None:
-    cursor.execute(_INSERT_INGESTION_RUN, _ingestion_run_parameters(prepared))
     cursor.execute(_INSERT_FRED_METADATA, _metadata_row_parameters(prepared))
 
 
-def _load_prepared_observations(
+def _insert_prepared_observations(
     cursor: psycopg.Cursor,
     prepared: _PreparedFredDataset,
 ) -> None:
-    cursor.execute(_INSERT_INGESTION_RUN, _ingestion_run_parameters(prepared))
     if prepared.result.record_count:
         cursor.executemany(
             _INSERT_FRED_OBSERVATION,
@@ -245,7 +255,19 @@ def load_fred_metadata_bronze_to_postgres(
         require_exactly_one_row=True,
     )
     with connection.cursor() as cursor:
-        _load_prepared_metadata(cursor, prepared)
+        try:
+            replay_state = register_or_verify_ingestion_run(
+                cursor,
+                run=_ingestion_run(
+                    prepared,
+                    source_table="source_data.fred_series_metadata",
+                ),
+                insert_sql=_INSERT_INGESTION_RUN,
+            )
+        except IngestionRunReplayError as exc:
+            raise FredPostgresLoadError(str(exc)) from exc
+        if replay_state is IngestionRunState.INSERTED:
+            _insert_prepared_metadata(cursor, prepared)
     return 1
 
 
@@ -260,7 +282,19 @@ def load_fred_observations_bronze_to_postgres(
         expected_schema=FRED_SERIES_OBSERVATIONS_SCHEMA,
     )
     with connection.cursor() as cursor:
-        _load_prepared_observations(cursor, prepared)
+        try:
+            replay_state = register_or_verify_ingestion_run(
+                cursor,
+                run=_ingestion_run(
+                    prepared,
+                    source_table="source_data.fred_series_observations",
+                ),
+                insert_sql=_INSERT_INGESTION_RUN,
+            )
+        except IngestionRunReplayError as exc:
+            raise FredPostgresLoadError(str(exc)) from exc
+        if replay_state is IngestionRunState.INSERTED:
+            _insert_prepared_observations(cursor, prepared)
     return prepared.result.record_count
 
 
@@ -297,9 +331,48 @@ def load_fred_series_bronze_to_postgres(
     ):
         raise FredPostgresLoadError("FRED combined Bronze run identity does not match")
 
+    metadata_run = _ingestion_run(
+        metadata,
+        source_table="source_data.fred_series_metadata",
+    )
+    observations_run = _ingestion_run(
+        observations,
+        source_table="source_data.fred_series_observations",
+    )
+
     with connection.cursor() as cursor:
-        _load_prepared_metadata(cursor, metadata)
-        _load_prepared_observations(cursor, observations)
+        try:
+            metadata_state = inspect_ingestion_run(cursor, run=metadata_run)
+            observations_state = inspect_ingestion_run(cursor, run=observations_run)
+            if metadata_state is not observations_state:
+                raise FredPostgresLoadError(
+                    "FRED combined PostgreSQL state is partially committed"
+                )
+            if metadata_state is IngestionRunState.VERIFIED_REPLAY:
+                return FredPostgresLoadResult(
+                    metadata_loaded=1,
+                    observations_loaded=observations.result.record_count,
+                )
+
+            metadata_state = register_or_verify_ingestion_run(
+                cursor,
+                run=metadata_run,
+                insert_sql=_INSERT_INGESTION_RUN,
+            )
+            observations_state = register_or_verify_ingestion_run(
+                cursor,
+                run=observations_run,
+                insert_sql=_INSERT_INGESTION_RUN,
+            )
+        except IngestionRunReplayError as exc:
+            raise FredPostgresLoadError(str(exc)) from exc
+        if metadata_state is not observations_state:
+            raise FredPostgresLoadError(
+                "FRED combined PostgreSQL state changed to partially committed"
+            )
+        if metadata_state is IngestionRunState.INSERTED:
+            _insert_prepared_metadata(cursor, metadata)
+            _insert_prepared_observations(cursor, observations)
 
     return FredPostgresLoadResult(
         metadata_loaded=1,

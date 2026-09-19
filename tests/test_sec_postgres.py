@@ -158,7 +158,36 @@ def _mock_connection() -> tuple[MagicMock, MagicMock, MagicMock]:
     connection = MagicMock(spec=psycopg.Connection)
     cursor_context = connection.cursor.return_value
     cursor = cursor_context.__enter__.return_value
+    cursor.fetchone.return_value = (1,)
     return connection, cursor_context, cursor
+
+
+def _configure_combined_first_load(cursor: MagicMock) -> None:
+    cursor.fetchone.side_effect = [None, None, (1,), (1,)]
+
+
+def _registry_row(result: SecBronzeDatasetResult) -> tuple[object, ...]:
+    metadata = result.location.metadata
+    return (
+        metadata.source,
+        metadata.dataset,
+        metadata.run_id,
+        metadata.ingested_at,
+        str(result.raw_json_path),
+        str(result.parquet_path),
+        result.record_count,
+    )
+
+
+def _configure_verified_replay(
+    cursor: MagicMock,
+    result: SecBronzeDatasetResult,
+) -> None:
+    cursor.fetchone.side_effect = [
+        None,
+        _registry_row(result),
+        (result.record_count,),
+    ]
 
 
 def _assert_caller_owns_transaction(connection: MagicMock) -> None:
@@ -200,6 +229,22 @@ def test_loads_submissions_in_parquet_order_with_timezone_and_nulls(
     _assert_caller_owns_transaction(connection)
 
 
+def test_exact_sec_submissions_replay_is_a_verified_no_op(tmp_path: Path) -> None:
+    result = _result(
+        tmp_path,
+        dataset=SEC_SUBMISSIONS_BRONZE_DATASET,
+        table=_table(SEC_SUBMISSIONS_BRONZE_DATASET, _submission_rows()),
+    )
+    connection, _, cursor = _mock_connection()
+    _configure_verified_replay(cursor, result)
+
+    assert load_sec_submissions_bronze_to_postgres(connection, result) == 2
+
+    assert cursor.execute.call_count == 3
+    cursor.executemany.assert_not_called()
+    _assert_caller_owns_transaction(connection)
+
+
 def test_loads_zero_row_submissions_registry_only(tmp_path: Path) -> None:
     result = _result(tmp_path, dataset=SEC_SUBMISSIONS_BRONZE_DATASET)
     connection, _, cursor = _mock_connection()
@@ -237,6 +282,21 @@ def test_loads_company_facts_with_decimal_order_and_nulls(tmp_path: Path) -> Non
     _assert_caller_owns_transaction(connection)
 
 
+def test_exact_sec_company_facts_replay_is_a_verified_no_op(tmp_path: Path) -> None:
+    result = _result(
+        tmp_path,
+        dataset=SEC_COMPANY_FACTS_BRONZE_DATASET,
+        table=_table(SEC_COMPANY_FACTS_BRONZE_DATASET, _company_fact_rows()),
+    )
+    connection, _, cursor = _mock_connection()
+    _configure_verified_replay(cursor, result)
+
+    assert load_sec_company_facts_bronze_to_postgres(connection, result) == 2
+
+    assert cursor.execute.call_count == 3
+    cursor.executemany.assert_not_called()
+
+
 def test_loads_zero_row_company_facts_registry_only(tmp_path: Path) -> None:
     result = _result(tmp_path, dataset=SEC_COMPANY_FACTS_BRONZE_DATASET)
     connection, _, cursor = _mock_connection()
@@ -270,6 +330,7 @@ def test_combined_load_preflights_both_then_uses_one_cursor_in_dataset_order(
 
     monkeypatch.setattr(sec_postgres, "read_parquet", read_with_event)
     connection, _, cursor = _mock_connection()
+    _configure_combined_first_load(cursor)
     connection.cursor.side_effect = lambda: (
         events.append("cursor") or MagicMock(
             __enter__=MagicMock(return_value=cursor),
@@ -283,9 +344,9 @@ def test_combined_load_preflights_both_then_uses_one_cursor_in_dataset_order(
     ) == SecPostgresLoadResult(2, 2)
 
     assert events == ["read", "read", "cursor"]
-    assert cursor.execute.call_args_list[0].args[0] == sec_postgres._INSERT_INGESTION_RUN
+    assert cursor.execute.call_args_list[2].args[0] == sec_postgres._INSERT_INGESTION_RUN
     assert cursor.executemany.call_args_list[0].args[0] == sec_postgres._INSERT_SEC_SUBMISSION
-    assert cursor.execute.call_args_list[1].args[0] == sec_postgres._INSERT_INGESTION_RUN
+    assert cursor.execute.call_args_list[3].args[0] == sec_postgres._INSERT_INGESTION_RUN
     assert cursor.executemany.call_args_list[1].args[0] == sec_postgres._INSERT_SEC_COMPANY_FACT
     _assert_caller_owns_transaction(connection)
 
@@ -315,6 +376,7 @@ def test_combined_load_registers_zero_row_datasets_without_row_inserts(
         table=_table(SEC_COMPANY_FACTS_BRONZE_DATASET, facts_rows),
     )
     connection, _, cursor = _mock_connection()
+    _configure_combined_first_load(cursor)
 
     loaded = load_sec_company_bronze_to_postgres(
         connection,
@@ -322,8 +384,74 @@ def test_combined_load_registers_zero_row_datasets_without_row_inserts(
     )
 
     assert loaded == SecPostgresLoadResult(len(submissions_rows), len(facts_rows))
-    assert cursor.execute.call_count == 2
+    assert cursor.execute.call_count == 4
     assert cursor.executemany.call_count == expected_calls
+
+
+def test_combined_sec_replay_verifies_both_datasets_without_writes(
+    tmp_path: Path,
+) -> None:
+    submissions = _result(
+        tmp_path,
+        dataset=SEC_SUBMISSIONS_BRONZE_DATASET,
+        table=_table(SEC_SUBMISSIONS_BRONZE_DATASET, _submission_rows()),
+    )
+    facts = _result(
+        tmp_path,
+        dataset=SEC_COMPANY_FACTS_BRONZE_DATASET,
+        table=_table(SEC_COMPANY_FACTS_BRONZE_DATASET, _company_fact_rows()),
+    )
+    connection, _, cursor = _mock_connection()
+    cursor.fetchone.side_effect = [
+        _registry_row(submissions),
+        (submissions.record_count,),
+        _registry_row(facts),
+        (facts.record_count,),
+    ]
+
+    assert load_sec_company_bronze_to_postgres(
+        connection,
+        SecCompanyBronzeResult(_CIK, submissions, facts),
+    ) == SecPostgresLoadResult(2, 2)
+
+    assert cursor.execute.call_count == 4
+    cursor.executemany.assert_not_called()
+
+
+def test_combined_sec_rejects_mixed_committed_state_without_writes(
+    tmp_path: Path,
+) -> None:
+    submissions = _result(tmp_path, dataset=SEC_SUBMISSIONS_BRONZE_DATASET)
+    facts = _result(tmp_path, dataset=SEC_COMPANY_FACTS_BRONZE_DATASET)
+    connection, _, cursor = _mock_connection()
+    cursor.fetchone.side_effect = [_registry_row(submissions), (0,), None]
+
+    with pytest.raises(SecPostgresLoadError, match="partially committed"):
+        load_sec_company_bronze_to_postgres(
+            connection,
+            SecCompanyBronzeResult(_CIK, submissions, facts),
+        )
+
+    cursor.executemany.assert_not_called()
+
+
+def test_combined_sec_rejects_inconsistent_committed_state_without_writes(
+    tmp_path: Path,
+) -> None:
+    submissions = _result(tmp_path, dataset=SEC_SUBMISSIONS_BRONZE_DATASET)
+    facts = _result(tmp_path, dataset=SEC_COMPANY_FACTS_BRONZE_DATASET)
+    mismatched_submissions = list(_registry_row(submissions))
+    mismatched_submissions[5] = "different/data.parquet"
+    connection, _, cursor = _mock_connection()
+    cursor.fetchone.side_effect = [tuple(mismatched_submissions)]
+
+    with pytest.raises(SecPostgresLoadError, match="parquet_path"):
+        load_sec_company_bronze_to_postgres(
+            connection,
+            SecCompanyBronzeResult(_CIK, submissions, facts),
+        )
+
+    cursor.executemany.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -521,13 +649,14 @@ def test_database_failures_propagate_without_transaction_control(tmp_path: Path)
         table=_table(SEC_COMPANY_FACTS_BRONZE_DATASET, _company_fact_rows()),
     )
     connection, _, cursor = _mock_connection()
+    _configure_combined_first_load(cursor)
     cursor.executemany.side_effect = psycopg.OperationalError("combined submissions rows")
     with pytest.raises(psycopg.OperationalError, match="combined submissions rows"):
         load_sec_company_bronze_to_postgres(
             connection,
             SecCompanyBronzeResult(_CIK, submissions, facts),
         )
-    assert cursor.execute.call_count == 1
+    assert cursor.execute.call_count == 4
     assert cursor.executemany.call_args.args[0] == sec_postgres._INSERT_SEC_SUBMISSION
     _assert_caller_owns_transaction(connection)
 
@@ -547,28 +676,33 @@ def test_combined_company_facts_failures_follow_submissions_sql(
     )
     combined = SecCompanyBronzeResult(_CIK, submissions, facts)
     connection, _, cursor = _mock_connection()
-    cursor.execute.side_effect = [None, psycopg.OperationalError("facts registry")]
+    _configure_combined_first_load(cursor)
+    cursor.execute.side_effect = [
+        None,
+        None,
+        None,
+        psycopg.OperationalError("facts registry"),
+    ]
 
     with pytest.raises(psycopg.OperationalError, match="facts registry"):
         load_sec_company_bronze_to_postgres(connection, combined)
-    assert cursor.executemany.call_args_list[0].args[0] == sec_postgres._INSERT_SEC_SUBMISSION
-    assert cursor.executemany.call_count == 1
+    cursor.executemany.assert_not_called()
     _assert_caller_owns_transaction(connection)
 
     connection, _, cursor = _mock_connection()
+    _configure_combined_first_load(cursor)
     cursor.executemany.side_effect = [None, psycopg.OperationalError("facts rows")]
     with pytest.raises(psycopg.OperationalError, match="facts rows"):
         load_sec_company_bronze_to_postgres(connection, combined)
-    assert cursor.execute.call_count == 2
+    assert cursor.execute.call_count == 4
     _assert_caller_owns_transaction(connection)
 
 
-def test_loader_has_no_duplicate_run_or_provider_policy() -> None:
+def test_loader_uses_exact_run_conflict_handling_without_provider_dependency() -> None:
     source = Path(sec_postgres.__file__).read_text(encoding="utf-8").upper()
 
-    assert "ON CONFLICT" not in source
+    assert "ON CONFLICT (SOURCE, DATASET, RUN_ID) DO NOTHING" in source
     assert "MERGE" not in source
-    assert "SELECT" not in source
     assert "SECEDGARCLIENT" not in source
 
 

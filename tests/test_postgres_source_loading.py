@@ -191,14 +191,26 @@ def test_loaders_leave_transactions_to_callers_and_open_no_connections() -> None
         assert "autocommit" not in assigned_attributes
 
 
-def test_step_7_loaders_have_no_rerun_or_transformation_policy() -> None:
-    forbidden_sql = re.compile(r"\b(?:SELECT|ON\s+CONFLICT|MERGE|UPDATE|DELETE)\b", re.I)
+def test_loaders_allow_only_exact_run_conflict_handling_without_transformations() -> None:
+    forbidden_sql = re.compile(r"\b(?:MERGE|UPDATE|DELETE)\b", re.I)
     forbidden_tables = re.compile(r"\b(?:stg_|dim_|fact_|mart_)\w*", re.I)
 
     for module in _LOADER_MODULES:
         statements = _insert_statements(module)
         assert not any(forbidden_sql.search(statement) for statement in statements)
         assert not any(forbidden_tables.search(statement) for statement in statements)
+        registry_statements = [
+            statement
+            for statement in statements
+            if "INSERT INTO source_data.ingestion_runs" in statement
+        ]
+        assert len(registry_statements) == 1
+        assert re.search(
+            r"ON\s+CONFLICT\s*\(source,\s*dataset,\s*run_id\)\s*"
+            r"DO\s+NOTHING\s+RETURNING\s+1",
+            registry_statements[0],
+            re.I,
+        )
         source = _module_source(module)
         assert "float(" not in source
         assert "sorted(" not in source

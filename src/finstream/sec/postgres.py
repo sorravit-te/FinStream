@@ -10,6 +10,13 @@ import pyarrow as pa
 from finstream.bronze.json_storage import raw_json_path
 from finstream.bronze.models import BronzeRunLocation
 from finstream.bronze.parquet_storage import parquet_path, read_parquet
+from finstream.database.replay import (
+    IngestionRun,
+    IngestionRunReplayError,
+    IngestionRunState,
+    inspect_ingestion_run,
+    register_or_verify_ingestion_run,
+)
 from finstream.sec.bronze import (
     SEC_BRONZE_SOURCE,
     SEC_COMPANY_FACTS_BRONZE_DATASET,
@@ -33,6 +40,8 @@ _INSERT_INGESTION_RUN = """
         parquet_path,
         record_count
     ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+    ON CONFLICT (source, dataset, run_id) DO NOTHING
+    RETURNING 1
 """
 
 _INSERT_SEC_SUBMISSION = """
@@ -159,19 +168,22 @@ def _preflight_dataset(
     return _PreparedSecDataset(result=result, table=table)
 
 
-def _ingestion_run_parameters(
+def _ingestion_run(
     prepared: _PreparedSecDataset,
-) -> tuple[object, ...]:
+    *,
+    source_table: str,
+) -> IngestionRun:
     result = prepared.result
     metadata = result.location.metadata
-    return (
-        metadata.source,
-        metadata.dataset,
-        metadata.run_id,
-        metadata.ingested_at,
-        str(result.raw_json_path),
-        str(result.parquet_path),
-        result.record_count,
+    return IngestionRun(
+        source=metadata.source,
+        dataset=metadata.dataset,
+        run_id=metadata.run_id,
+        ingested_at=metadata.ingested_at,
+        raw_json_path=str(result.raw_json_path),
+        parquet_path=str(result.parquet_path),
+        record_count=result.record_count,
+        source_table=source_table,
     )
 
 
@@ -233,20 +245,18 @@ def _company_fact_row_parameters(
         )
 
 
-def _load_prepared_submissions(
+def _insert_prepared_submissions(
     cursor: psycopg.Cursor,
     prepared: _PreparedSecDataset,
 ) -> None:
-    cursor.execute(_INSERT_INGESTION_RUN, _ingestion_run_parameters(prepared))
     if prepared.result.record_count:
         cursor.executemany(_INSERT_SEC_SUBMISSION, _submission_row_parameters(prepared))
 
 
-def _load_prepared_company_facts(
+def _insert_prepared_company_facts(
     cursor: psycopg.Cursor,
     prepared: _PreparedSecDataset,
 ) -> None:
-    cursor.execute(_INSERT_INGESTION_RUN, _ingestion_run_parameters(prepared))
     if prepared.result.record_count:
         cursor.executemany(
             _INSERT_SEC_COMPANY_FACT,
@@ -265,7 +275,19 @@ def load_sec_submissions_bronze_to_postgres(
         expected_schema=SEC_SUBMISSIONS_SCHEMA,
     )
     with connection.cursor() as cursor:
-        _load_prepared_submissions(cursor, prepared)
+        try:
+            replay_state = register_or_verify_ingestion_run(
+                cursor,
+                run=_ingestion_run(
+                    prepared,
+                    source_table="source_data.sec_submissions",
+                ),
+                insert_sql=_INSERT_INGESTION_RUN,
+            )
+        except IngestionRunReplayError as exc:
+            raise SecPostgresLoadError(str(exc)) from exc
+        if replay_state is IngestionRunState.INSERTED:
+            _insert_prepared_submissions(cursor, prepared)
     return prepared.result.record_count
 
 
@@ -280,7 +302,19 @@ def load_sec_company_facts_bronze_to_postgres(
         expected_schema=SEC_COMPANY_FACTS_SCHEMA,
     )
     with connection.cursor() as cursor:
-        _load_prepared_company_facts(cursor, prepared)
+        try:
+            replay_state = register_or_verify_ingestion_run(
+                cursor,
+                run=_ingestion_run(
+                    prepared,
+                    source_table="source_data.sec_company_facts",
+                ),
+                insert_sql=_INSERT_INGESTION_RUN,
+            )
+        except IngestionRunReplayError as exc:
+            raise SecPostgresLoadError(str(exc)) from exc
+        if replay_state is IngestionRunState.INSERTED:
+            _insert_prepared_company_facts(cursor, prepared)
     return prepared.result.record_count
 
 
@@ -313,9 +347,48 @@ def load_sec_company_bronze_to_postgres(
     ):
         raise SecPostgresLoadError("SEC combined Bronze run identity does not match")
 
+    submissions_run = _ingestion_run(
+        submissions,
+        source_table="source_data.sec_submissions",
+    )
+    company_facts_run = _ingestion_run(
+        company_facts,
+        source_table="source_data.sec_company_facts",
+    )
+
     with connection.cursor() as cursor:
-        _load_prepared_submissions(cursor, submissions)
-        _load_prepared_company_facts(cursor, company_facts)
+        try:
+            submissions_state = inspect_ingestion_run(cursor, run=submissions_run)
+            company_facts_state = inspect_ingestion_run(cursor, run=company_facts_run)
+            if submissions_state is not company_facts_state:
+                raise SecPostgresLoadError(
+                    "SEC combined PostgreSQL state is partially committed"
+                )
+            if submissions_state is IngestionRunState.VERIFIED_REPLAY:
+                return SecPostgresLoadResult(
+                    submissions_loaded=submissions.result.record_count,
+                    company_facts_loaded=company_facts.result.record_count,
+                )
+
+            submissions_state = register_or_verify_ingestion_run(
+                cursor,
+                run=submissions_run,
+                insert_sql=_INSERT_INGESTION_RUN,
+            )
+            company_facts_state = register_or_verify_ingestion_run(
+                cursor,
+                run=company_facts_run,
+                insert_sql=_INSERT_INGESTION_RUN,
+            )
+        except IngestionRunReplayError as exc:
+            raise SecPostgresLoadError(str(exc)) from exc
+        if submissions_state is not company_facts_state:
+            raise SecPostgresLoadError(
+                "SEC combined PostgreSQL state changed to partially committed"
+            )
+        if submissions_state is IngestionRunState.INSERTED:
+            _insert_prepared_submissions(cursor, submissions)
+            _insert_prepared_company_facts(cursor, company_facts)
 
     return SecPostgresLoadResult(
         submissions_loaded=submissions.result.record_count,

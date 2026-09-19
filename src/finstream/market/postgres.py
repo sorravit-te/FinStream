@@ -7,6 +7,12 @@ import pyarrow as pa
 
 from finstream.bronze.json_storage import raw_json_path
 from finstream.bronze.parquet_storage import parquet_path, read_parquet
+from finstream.database.replay import (
+    IngestionRun,
+    IngestionRunReplayError,
+    IngestionRunState,
+    register_or_verify_ingestion_run,
+)
 from finstream.market.bronze import (
     DAILY_MARKET_PRICE_SCHEMA,
     MARKET_BRONZE_DATASET,
@@ -25,6 +31,8 @@ _INSERT_INGESTION_RUN = """
         parquet_path,
         record_count
     ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+    ON CONFLICT (source, dataset, run_id) DO NOTHING
+    RETURNING 1
 """
 
 _INSERT_MARKET_DAILY_PRICE = """
@@ -113,6 +121,21 @@ def _market_row_parameters(
         )
 
 
+def _ingestion_run(result: MarketBronzeResult) -> IngestionRun:
+    """Build replay-verification metadata after Market preflight succeeds."""
+    metadata = result.location.metadata
+    return IngestionRun(
+        source=metadata.source,
+        dataset=metadata.dataset,
+        run_id=metadata.run_id,
+        ingested_at=metadata.ingested_at,
+        raw_json_path=str(result.raw_json_path),
+        parquet_path=str(result.parquet_path),
+        record_count=result.record_count,
+        source_table="source_data.market_daily_prices",
+    )
+
+
 def load_market_bronze_to_postgres(
     connection: psycopg.Connection,
     result: MarketBronzeResult,
@@ -120,18 +143,19 @@ def load_market_bronze_to_postgres(
     """Load one existing Market Bronze run inside the caller-owned transaction."""
     table = _validated_table(result)
     metadata = result.location.metadata
-    ingestion_parameters = (
-        metadata.source,
-        metadata.dataset,
-        metadata.run_id,
-        metadata.ingested_at,
-        str(result.raw_json_path),
-        str(result.parquet_path),
-        result.record_count,
-    )
+    ingestion_run = _ingestion_run(result)
 
     with connection.cursor() as cursor:
-        cursor.execute(_INSERT_INGESTION_RUN, ingestion_parameters)
+        try:
+            replay_state = register_or_verify_ingestion_run(
+                cursor,
+                run=ingestion_run,
+                insert_sql=_INSERT_INGESTION_RUN,
+            )
+        except IngestionRunReplayError as exc:
+            raise MarketPostgresLoadError(str(exc)) from exc
+        if replay_state is IngestionRunState.VERIFIED_REPLAY:
+            return result.record_count
         if result.record_count:
             cursor.executemany(
                 _INSERT_MARKET_DAILY_PRICE,
