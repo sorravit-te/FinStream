@@ -133,8 +133,39 @@ cross-run revisions into duplicates, or repair inconsistent committed state.
 | SEC Company Facts | Required structural fields, finite value, valid dates, optional instant start, and ordered duration | Validity, consistency | Source parsing and PostgreSQL | Reject | Current |
 | SEC Company Facts | Latest documented analytical tuple | Uniqueness | dbt Silver | Test failure | Current; not a global XBRL identity claim |
 | Gold facts/dimensions | Required consumer keys, fact grains, modeled CIK/metric/series relationships, and fact dates in `dim_date` | Completeness, uniqueness, referential integrity | dbt Gold | Test failure | Current |
+| Gold financial facts | Required SEC filing form in the mapped reporting context | Completeness | dbt Gold | Test failure | Current |
 | Financial metric mapping | Required seed columns, unique taxonomy/concept mapping, and consistent metric names | Validity, uniqueness, consistency | dbt seed / singular tests | Test failure | Current |
-| All sources | Freshness, row-count movement, null-rate movement, and extreme-value signals | Freshness, anomaly | Monitoring | Warning | Missing; no thresholds, baselines, or routing yet |
+| Market, FRED, and SEC | Latest represented source date and calendar-day age at explicit `as_of` | Freshness | Read-only monitoring | Informational | Current; no source-specific freshness threshold is configured |
+| All loaded datasets | Consecutive ingestion-run record counts and deltas | Completeness | Read-only monitoring | Informational | Current; retrieval scope comparability is not recorded |
+| All sources | Null-rate movement and extreme-value signals | Completeness, anomaly | Monitoring | Warning | Deferred; no justified field scope, baseline, or routing yet |
+
+## Analytical Test Scope
+
+The dbt suite tests the current approved Silver and Gold output grains, required
+analytical fields, consumer-facing dimensions, modeled relationships, fact-date
+coverage, and curated metric mapping. It does not repeat source-history
+uniqueness, which would reject valid cross-run revisions. `accepted_values`
+remains intentionally absent: no current consumer-facing field has a project
+defined closed domain that is not already enforced structurally.
+
+## Monitoring
+
+Monitoring is read-only and returns locally consumable structured signals. It
+accepts an explicit `as_of` date, measures rather than mutates source state,
+and reports `INFO` unless evaluation itself cannot complete. No warning
+thresholds, alert destination, or pipeline-blocking behavior is configured.
+
+- Market reports the latest trading date per symbol and calendar-day age, but
+  remains informational without an exchange calendar or freshness policy.
+- FRED reports the latest observation date per series and calendar-day age;
+  stored frequency is not yet a normalized cadence policy.
+- SEC reports the latest represented submissions or Company Facts filing date
+  per CIK; filings are event-driven and have no freshness SLA.
+- Consecutive run counts include absolute and, where defined, percent movement.
+  Their scopes are not recorded as comparable, so movement remains
+  informational.
+- Null-rate and anomaly monitoring are deferred. No statistical/ML detection,
+  universal threshold, or automatic repair is performed.
 
 ## Failure and Warning Policy
 

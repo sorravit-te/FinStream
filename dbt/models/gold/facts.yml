@@ -79,6 +79,7 @@ models:
         description: SEC-provided fiscal period retained without calendar conversion.
       - name: form
         description: SEC filing form for the reported fact context.
+        data_tests: [not_null]
       - name: filed_date
         description: SEC filing date for the reported fact context.
         data_tests: [not_null]
