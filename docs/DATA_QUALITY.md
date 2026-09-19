@@ -31,7 +31,7 @@ cross-run revisions into duplicates, or repair inconsistent committed state.
 | Bronze | Strict Raw JSON and Arrow/Parquet schemas, deterministic row counts, and immutable artifact recovery verification. | Analytical filtering, imputation, or deletion of valid source values. |
 | PostgreSQL source layer | Run provenance, per-run keys, foreign keys, check constraints, exact-run replay verification, and schema/count preflight. | Cross-run uniqueness that would discard revisions or automatic repair of inconsistent committed state. |
 | dbt source, Silver, and Gold | Persisted required analytical fields, latest-representation grains, modeled relationships, curated mapping consistency, and consumer-facing fact/dimension grains. | Re-validating every provider parser rule or treating unmapped facts and valid nullable source values as failures. |
-| Monitoring (future) | Source-specific freshness, row-count movement, and anomaly signals with baselines and operational routing. | A universal freshness threshold, exchange-calendar completeness, or automatic repair. |
+| Monitoring | Read-only source-specific recency and run-count measurements; future anomaly signals require approved baselines and operational routing. | A universal freshness threshold, exchange-calendar completeness, or automatic repair. |
 
 ## Dataset Contracts
 
@@ -150,10 +150,12 @@ defined closed domain that is not already enforced structurally.
 
 ## Monitoring
 
-Monitoring is read-only and returns locally consumable structured signals. It
-accepts an explicit `as_of` date, measures rather than mutates source state,
-and reports `INFO` unless evaluation itself cannot complete. No warning
-thresholds, alert destination, or pipeline-blocking behavior is configured.
+Monitoring is read-only and returns locally consumable structured signals
+without persisting monitoring history. It accepts an explicit `as_of` date,
+measures rather than mutates source state, and reports `INFO` unless evaluation
+itself cannot complete. The result status domain also includes `PASS`,
+`WARNING`, and `ERROR`; no warning-producing threshold, alert destination, or
+pipeline-blocking behavior is configured.
 
 - Market reports the latest trading date per symbol and calendar-day age, but
   remains informational without an exchange calendar or freshness policy.
@@ -184,16 +186,18 @@ thresholds, alert destination, or pipeline-blocking behavior is configured.
 
 ## Freshness, Completeness, and Anomalies
 
-No automated freshness or anomaly detector exists today. A shared threshold
-would be incorrect: Market availability depends on trading days, FRED on
-series publication frequency, and SEC on filing events. Likewise, a maximum
-date does not prove historical completeness, and `filings.recent` is an
-intentional bounded SEC scope.
+No automated threshold-based freshness or anomaly detector exists today. The
+current read-only monitoring measurements report source recency and run-count
+movement as informational signals only. A shared threshold would be incorrect:
+Market availability depends on trading days, FRED on series publication
+frequency, and SEC on filing events. Likewise, a maximum date does not prove
+historical completeness, and `filings.recent` is an intentional bounded SEC
+scope.
 
-Future monitoring may report source-specific row-count changes, staleness, or
-unusual values, but requires an explicit baseline, schedule, and operational
-owner. It must not classify a valid source correction, no-new-data response,
-or nullable FRED value as invalid.
+Future monitoring may add source-specific null-rate movement, staleness, or
+unusual-value signals, but requires an explicit baseline, schedule, and
+operational owner. It must not classify a valid source correction, no-new-data
+response, or nullable FRED value as invalid.
 
 ## Known Limitations and Non-goals
 

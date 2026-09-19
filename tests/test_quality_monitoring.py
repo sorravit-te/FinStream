@@ -1,3 +1,4 @@
+from dataclasses import FrozenInstanceError
 from datetime import date, datetime, timezone
 from unittest.mock import MagicMock
 
@@ -5,6 +6,8 @@ import psycopg
 import pytest
 
 from finstream.quality.monitoring import (
+    QualityMeasurement,
+    QualitySignal,
     QualityStatus,
     monitor_fred_observation_freshness,
     monitor_market_freshness,
@@ -34,6 +37,36 @@ def _assert_caller_owns_transaction(connection: MagicMock) -> None:
     connection.commit.assert_not_called()
     connection.rollback.assert_not_called()
     connection.close.assert_not_called()
+
+
+def test_quality_signal_contract_is_immutable_closed_and_attributed() -> None:
+    measurement = QualityMeasurement("latest_date", date(2026, 9, 18))
+    signal = QualitySignal(
+        check_id="market_latest_trading_date",
+        source="twelve_data",
+        dataset="daily_market_prices",
+        entity_id="AAPL",
+        dimension="freshness",
+        status=QualityStatus.INFO,
+        as_of=_AS_OF,
+        measurements=(measurement,),
+        message="Informational measurement.",
+    )
+
+    assert set(QualityStatus) == {
+        QualityStatus.PASS,
+        QualityStatus.WARNING,
+        QualityStatus.INFO,
+        QualityStatus.ERROR,
+    }
+    assert signal.source == "twelve_data"
+    assert signal.dataset == "daily_market_prices"
+    assert signal.entity_id == "AAPL"
+    assert signal.as_of == _AS_OF
+    with pytest.raises(FrozenInstanceError):
+        signal.status = QualityStatus.WARNING  # type: ignore[misc]
+    with pytest.raises(FrozenInstanceError):
+        measurement.value = date(2026, 9, 19)  # type: ignore[misc]
 
 
 def test_market_recency_uses_explicit_as_of_and_is_symbol_isolated() -> None:
