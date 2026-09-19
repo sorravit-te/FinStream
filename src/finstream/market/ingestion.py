@@ -7,10 +7,11 @@ from typing import Any
 
 import psycopg
 
-from finstream.bronze.json_storage import raw_json_path, write_raw_json
+from finstream.bronze.json_storage import write_raw_json
 from finstream.bronze.models import BronzeRunLocation
-from finstream.bronze.parquet_storage import parquet_path, write_parquet
+from finstream.bronze.parquet_storage import write_parquet
 from finstream.bronze.paths import DEFAULT_BRONZE_ROOT
+from finstream.bronze.recovery import recover_or_verify_bronze_artifacts
 from finstream.market.bronze import (
     MARKET_BRONZE_DATASET,
     MARKET_BRONZE_SOURCE,
@@ -161,11 +162,19 @@ class MarketIngestionService:
             dataset=MARKET_BRONZE_DATASET,
             ingested_at=run_at,
         )
-        target_raw_json_path = raw_json_path(location)
-        target_parquet_path = parquet_path(location)
-        if target_raw_json_path.exists() or target_parquet_path.exists():
-            raise FileExistsError(
-                "Market Bronze artifact already exists for this run"
+        recovered = recover_or_verify_bronze_artifacts(
+            location,
+            table_from_payload=lambda payload: daily_market_prices_to_table(
+                parse_daily_time_series(payload, expected_symbol=normalized_symbol)
+            ),
+        )
+        if recovered is not None:
+            return MarketBronzeResult(
+                symbol=normalized_symbol,
+                location=location,
+                raw_json_path=recovered.raw_json_path,
+                parquet_path=recovered.parquet_path,
+                record_count=recovered.table.num_rows,
             )
 
         if lower_bound_only:

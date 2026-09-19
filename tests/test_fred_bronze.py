@@ -9,6 +9,7 @@ import pytest
 import finstream.fred.ingestion as fred_ingestion
 from finstream.bronze.json_storage import BronzeRawJsonValidationError, read_raw_json, write_raw_json
 from finstream.bronze.models import BronzeRunLocation
+from finstream.bronze.recovery import BronzeRecoveryError
 from finstream.bronze.parquet_storage import BronzeParquetWriteError, read_parquet, write_parquet
 from finstream.fred.bronze import (
     FRED_BRONZE_SOURCE, FRED_SERIES_METADATA_BRONZE_DATASET,
@@ -137,12 +138,35 @@ def test_empty_observations_and_complete_series_order(tmp_path: Path) -> None:
     assert read_parquet(result.observations.location).num_rows == 0
 
 
+def test_same_run_raw_only_fred_datasets_reconstruct_without_requests(tmp_path: Path) -> None:
+    metadata_location = location(tmp_path, FRED_SERIES_METADATA_BRONZE_DATASET)
+    observations_location = location(tmp_path, FRED_SERIES_OBSERVATIONS_BRONZE_DATASET)
+    write_raw_json(metadata_location, metadata_payload())
+    write_raw_json(observations_location, observations_payload([observation()]))
+    source = client()
+
+    result = FredMacroeconomicIngestionService(source).ingest_series_to_bronze(
+        SERIES_ID, run_at=RUN_AT, bronze_root=tmp_path / "bronze"
+    )
+
+    assert result.metadata.record_count == 1
+    assert result.observations.record_count == 1
+    assert result.metadata.parquet_path.is_file()
+    assert result.observations.parquet_path.is_file()
+    reused = FredMacroeconomicIngestionService(source).ingest_series_to_bronze(
+        SERIES_ID, run_at=RUN_AT, bronze_root=tmp_path / "bronze"
+    )
+    assert reused.metadata.record_count == 1
+    assert reused.observations.record_count == 1
+    assert source.method_calls == []
+
+
 @pytest.mark.parametrize("dataset", [FRED_SERIES_METADATA_BRONZE_DATASET, FRED_SERIES_OBSERVATIONS_BRONZE_DATASET])
 def test_complete_series_preflight_collision_prevents_requests(tmp_path: Path, dataset: str) -> None:
     existing = location(tmp_path, dataset)
     write_raw_json(existing, {"existing": "artifact"})
     source = client()
-    with pytest.raises(FileExistsError):
+    with pytest.raises(BronzeRecoveryError):
         FredMacroeconomicIngestionService(source).ingest_series_to_bronze(SERIES_ID, run_at=RUN_AT, bronze_root=tmp_path / "bronze")
     assert source.method_calls == []
     assert read_raw_json(existing) == {"existing": "artifact"}
@@ -214,7 +238,7 @@ def test_endpoint_collision_prevents_its_provider_request(tmp_path: Path, datase
     write_raw_json(existing, {"existing": "artifact"})
     source = client()
     service = FredMacroeconomicIngestionService(source)
-    with pytest.raises(FileExistsError):
+    with pytest.raises(BronzeRecoveryError):
         if dataset == FRED_SERIES_METADATA_BRONZE_DATASET:
             service.ingest_metadata_to_bronze(SERIES_ID, run_at=RUN_AT, bronze_root=tmp_path / "bronze")
         else:

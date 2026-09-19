@@ -13,6 +13,7 @@ from finstream.bronze.json_storage import (
     write_raw_json,
 )
 from finstream.bronze.models import BronzeRunLocation
+from finstream.bronze.recovery import BronzeRecoveryError
 from finstream.bronze.parquet_storage import BronzeParquetWriteError, read_parquet
 from finstream.sec.bronze import (
     SEC_BRONZE_SOURCE,
@@ -449,6 +450,34 @@ def test_company_bronze_preserves_request_order_pacing_and_four_artifacts(
         ) == ["data.parquet", "payload.json"]
 
 
+def test_same_run_raw_only_sec_datasets_reconstruct_without_requests(
+    tmp_path: Path,
+) -> None:
+    submissions_location = _location(tmp_path, SEC_SUBMISSIONS_BRONZE_DATASET)
+    facts_location = _location(tmp_path, SEC_COMPANY_FACTS_BRONZE_DATASET)
+    write_raw_json(submissions_location, _submissions_payload(_filing_row()))
+    write_raw_json(facts_location, _company_facts_payload(_occurrence()))
+    client = Mock(spec=SecEdgarClient)
+    sleeper = Mock()
+
+    result = SecFinancialIngestionService(
+        client, request_delay_seconds=0, sleeper=sleeper
+    ).ingest_company_to_bronze(320193, run_at=_RUN_AT, bronze_root=tmp_path / "bronze")
+
+    assert result.submissions.record_count == 1
+    assert result.company_facts.record_count == 1
+    assert result.submissions.parquet_path.is_file()
+    assert result.company_facts.parquet_path.is_file()
+    reused = SecFinancialIngestionService(
+        client, request_delay_seconds=0, sleeper=sleeper
+    ).ingest_company_to_bronze(320193, run_at=_RUN_AT, bronze_root=tmp_path / "bronze")
+    assert reused.submissions.record_count == 1
+    assert reused.company_facts.record_count == 1
+    client.fetch_submissions.assert_not_called()
+    client.fetch_company_facts.assert_not_called()
+    sleeper.assert_not_called()
+
+
 def test_prevalidation_and_combined_collision_make_no_requests_or_sleeps(
     tmp_path: Path,
 ) -> None:
@@ -471,7 +500,7 @@ def test_prevalidation_and_combined_collision_make_no_requests_or_sleeps(
 
     collision = _location(tmp_path, SEC_COMPANY_FACTS_BRONZE_DATASET)
     write_raw_json(collision, {"existing": "artifact"})
-    with pytest.raises(FileExistsError):
+    with pytest.raises(BronzeRecoveryError):
         service.ingest_company_to_bronze(
             320193,
             run_at=_RUN_AT,
@@ -595,7 +624,7 @@ def test_endpoint_collision_prevents_request_and_sleep(tmp_path: Path) -> None:
     write_raw_json(location, {"existing": "artifact"})
     client = Mock(spec=SecEdgarClient)
     sleeper = Mock()
-    with pytest.raises(FileExistsError):
+    with pytest.raises(BronzeRecoveryError):
         SecFinancialIngestionService(client, sleeper=sleeper).ingest_submissions_to_bronze(320193, run_at=_RUN_AT, bronze_root=tmp_path / "bronze")
     client.fetch_submissions.assert_not_called()
     sleeper.assert_not_called()

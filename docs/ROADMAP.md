@@ -132,6 +132,8 @@ FinStream is implemented incrementally so each data layer and component is worki
 
 ### Step 9 — Incremental Processing and Idempotency
 
+**Status:** Complete.
+
 **Scope:**
 
 - Define incremental strategies and source-appropriate watermarks or retrieval boundaries.

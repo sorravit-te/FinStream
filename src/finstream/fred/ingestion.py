@@ -7,10 +7,11 @@ from typing import Any
 
 import psycopg
 
-from finstream.bronze.json_storage import raw_json_path, write_raw_json
+from finstream.bronze.json_storage import write_raw_json
 from finstream.bronze.models import BronzeRunLocation
-from finstream.bronze.parquet_storage import parquet_path, write_parquet
+from finstream.bronze.parquet_storage import write_parquet
 from finstream.bronze.paths import DEFAULT_BRONZE_ROOT
+from finstream.bronze.recovery import recover_or_verify_bronze_artifacts
 from finstream.fred.bronze import (
     FRED_BRONZE_SOURCE,
     FRED_SERIES_METADATA_BRONZE_DATASET,
@@ -107,7 +108,9 @@ class FredMacroeconomicIngestionService:
             run_at=run_at,
             bronze_root=bronze_root,
         )
-        self._preflight_bronze_location(location)
+        recovered = self._recover_metadata_bronze(normalized_id, location)
+        if recovered is not None:
+            return recovered
         return self._ingest_metadata_to_bronze(normalized_id, location)
 
     def ingest_observations(
@@ -158,7 +161,9 @@ class FredMacroeconomicIngestionService:
             run_at=run_at,
             bronze_root=bronze_root,
         )
-        self._preflight_bronze_location(location)
+        recovered = self._recover_observations_bronze(normalized_id, location)
+        if recovered is not None:
+            return recovered
         return self._ingest_observations_to_bronze(
             normalized_id,
             location,
@@ -221,18 +226,22 @@ class FredMacroeconomicIngestionService:
             run_at=run_at,
             bronze_root=bronze_root,
         )
-        self._preflight_bronze_location(metadata_location)
-        self._preflight_bronze_location(observations_location)
-
-        metadata = self._ingest_metadata_to_bronze(normalized_id, metadata_location)
-        observations = self._ingest_observations_to_bronze(
+        metadata = self._recover_metadata_bronze(normalized_id, metadata_location)
+        observations = self._recover_observations_bronze(
             normalized_id,
             observations_location,
-            observation_start=observation_start,
-            observation_end=observation_end,
-            realtime_start=realtime_start,
-            realtime_end=realtime_end,
         )
+        if metadata is None:
+            metadata = self._ingest_metadata_to_bronze(normalized_id, metadata_location)
+        if observations is None:
+            observations = self._ingest_observations_to_bronze(
+                normalized_id,
+                observations_location,
+                observation_start=observation_start,
+                observation_end=observation_end,
+                realtime_start=realtime_start,
+                realtime_end=realtime_end,
+            )
         return FredSeriesBronzeResult(
             series_id=normalized_id,
             metadata=metadata,
@@ -344,9 +353,52 @@ class FredMacroeconomicIngestionService:
         )
 
     @staticmethod
-    def _preflight_bronze_location(location: BronzeRunLocation) -> None:
-        if raw_json_path(location).exists() or parquet_path(location).exists():
-            raise FileExistsError("FRED Bronze artifact already exists for this run")
+    def _recovered_dataset_result(
+        series_id: str,
+        location: BronzeRunLocation,
+        record_count: int,
+    ) -> FredBronzeDatasetResult:
+        return FredBronzeDatasetResult(
+            series_id=series_id,
+            location=location,
+            raw_json_path=location.directory / "payload.json",
+            parquet_path=location.directory / "data.parquet",
+            record_count=record_count,
+        )
+
+    def _recover_metadata_bronze(
+        self,
+        normalized_id: str,
+        location: BronzeRunLocation,
+    ) -> FredBronzeDatasetResult | None:
+        recovered = recover_or_verify_bronze_artifacts(
+            location,
+            table_from_payload=lambda payload: fred_series_metadata_to_table(
+                parse_series_metadata(payload, expected_series_id=normalized_id)
+            ),
+        )
+        if recovered is None:
+            return None
+        return self._recovered_dataset_result(normalized_id, location, 1)
+
+    def _recover_observations_bronze(
+        self,
+        normalized_id: str,
+        location: BronzeRunLocation,
+    ) -> FredBronzeDatasetResult | None:
+        recovered = recover_or_verify_bronze_artifacts(
+            location,
+            table_from_payload=lambda payload: fred_series_observations_to_table(
+                parse_series_observations(payload, expected_series_id=normalized_id)
+            ),
+        )
+        if recovered is None:
+            return None
+        return self._recovered_dataset_result(
+            normalized_id,
+            location,
+            recovered.table.num_rows,
+        )
 
     def _ingest_metadata_to_bronze(
         self,

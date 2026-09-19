@@ -1,4 +1,4 @@
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from unittest.mock import MagicMock, Mock
@@ -239,6 +239,53 @@ def test_incremental_market_retains_overlap_correction_in_new_bronze_run(
         date(2026, 9, 18),
     ]
     assert table.column("close").to_pylist() == [Decimal("253"), Decimal("252")]
+
+
+def test_incremental_market_runs_compose_with_same_run_reuse_and_correction(
+    tmp_path: Path,
+) -> None:
+    run_a_at = _RUN_AT - timedelta(days=1)
+    bootstrap_connection, _ = _watermark_connection(None)
+    bootstrap_client = Mock(spec=TwelveDataClient)
+    bootstrap_client.fetch_daily_time_series.return_value = _payload(
+        "AAPL",
+        [
+            _row("2026-09-17", close="249"),
+            _row("2026-09-18", close="250"),
+        ],
+    )
+    service = MarketIngestionService(bootstrap_client)
+
+    run_a = service.ingest_symbol_incrementally_to_bronze(
+        bootstrap_connection, "AAPL", run_at=run_a_at, bronze_root=tmp_path / "bronze"
+    )
+    reused_run_a = service.ingest_symbol_incrementally_to_bronze(
+        bootstrap_connection, "AAPL", run_at=run_a_at, bronze_root=tmp_path / "bronze"
+    )
+
+    correction_connection, _ = _watermark_connection(date(2026, 9, 18))
+    correction_client = Mock(spec=TwelveDataClient)
+    correction_client.fetch_daily_time_series_since.return_value = _payload(
+        "AAPL",
+        [
+            _row("2026-09-18", close="252"),
+            _row("2026-09-19", close="253"),
+        ],
+    )
+    run_b = MarketIngestionService(correction_client).ingest_symbol_incrementally_to_bronze(
+        correction_connection, "AAPL", run_at=_RUN_AT, bronze_root=tmp_path / "bronze"
+    )
+
+    assert run_a.location.metadata.run_id == reused_run_a.location.metadata.run_id
+    assert run_a.location.metadata.run_id != run_b.location.metadata.run_id
+    assert bootstrap_client.fetch_daily_time_series.call_count == 1
+    correction_client.fetch_daily_time_series_since.assert_called_once_with(
+        "AAPL", start_date=date(2026, 9, 15)
+    )
+    assert read_parquet(run_b.location).column("close").to_pylist() == [
+        Decimal("252"),
+        Decimal("253"),
+    ]
 
 
 def test_incremental_market_zero_row_weekend_response_remains_valid(

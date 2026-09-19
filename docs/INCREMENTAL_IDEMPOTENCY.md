@@ -68,10 +68,26 @@ Bronze artifacts are stored under:
 - Artifacts are immutable and existing files are never overwritten.
 - Different `run_id` values may contain the same logical source records.
 - `run_id` records execution provenance rather than source business identity.
-- Retrying the identical Bronze run is not currently idempotent: an existing
-  artifact path raises `FileExistsError`.
+- Retrying the identical Bronze run verifies or reconstructs its canonical
+  artifacts when their captured Raw JSON proves the same-run state.
 - Raw JSON is written before Parquet, so a partial failure can leave a raw-only
   run.
+
+## Same-Run Recovery
+
+- A retry with the same `run_id` first inspects only its canonical
+  `payload.json` and `data.parquet` paths.
+- With no artifacts, normal provider retrieval proceeds. With valid Raw JSON
+  and missing Parquet, FinStream reparses the captured payload and recreates
+  only the missing Parquet artifact without a provider request.
+- With a complete pair, the stored Parquet must exactly match deterministic
+  reconstruction from Raw JSON; a verified pair is reused without overwrite or
+  refetch.
+- Parquet-only, malformed Raw JSON, invalid/mismatched Parquet, or unexpected
+  run-directory contents fail deterministically and require operator action.
+- Normal PostgreSQL loaders retain fail-fast replay verification. A committed
+  registry/source mismatch and a mixed FRED or SEC combined state are not
+  automatically repaired; callers must resolve them explicitly.
 
 ## PostgreSQL Replay Contract
 
@@ -130,8 +146,8 @@ rules.
   historical revisions outside the requested observation window.
 - A zero-row ingestion run cannot currently be attributed from the registry
   alone to a requested symbol, CIK, or FRED series.
-- Partial Bronze/raw-only states require explicit recovery behavior; automatic
-  recovery is not currently provided.
+- Valid raw-only Bronze states can reconstruct their missing Parquet artifact;
+  malformed or inconsistent artifact states require operator action.
 - Transaction recovery remains caller-owned.
 
 Any future reconciliation logic must preserve the immutable-run and cross-run

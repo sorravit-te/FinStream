@@ -7,10 +7,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from finstream.bronze.json_storage import raw_json_path, write_raw_json
+from finstream.bronze.json_storage import write_raw_json
 from finstream.bronze.models import BronzeRunLocation
-from finstream.bronze.parquet_storage import parquet_path, write_parquet
+from finstream.bronze.parquet_storage import write_parquet
 from finstream.bronze.paths import DEFAULT_BRONZE_ROOT
+from finstream.bronze.recovery import recover_or_verify_bronze_artifacts
 from finstream.sec.bronze import (
     SEC_BRONZE_SOURCE,
     SEC_COMPANY_FACTS_BRONZE_DATASET,
@@ -77,7 +78,9 @@ class SecFinancialIngestionService:
             run_at=run_at,
             bronze_root=bronze_root,
         )
-        self._preflight_bronze_location(location)
+        recovered = self._recover_submissions_bronze(normalized_cik, location)
+        if recovered is not None:
+            return recovered
         return self._ingest_submissions_to_bronze(normalized_cik, location)
 
     def ingest_company_facts_to_bronze(
@@ -94,7 +97,9 @@ class SecFinancialIngestionService:
             run_at=run_at,
             bronze_root=bronze_root,
         )
-        self._preflight_bronze_location(location)
+        recovered = self._recover_company_facts_bronze(normalized_cik, location)
+        if recovered is not None:
+            return recovered
         return self._ingest_company_facts_to_bronze(normalized_cik, location)
 
     def ingest_company_to_bronze(
@@ -116,17 +121,24 @@ class SecFinancialIngestionService:
             run_at=run_at,
             bronze_root=bronze_root,
         )
-        self._preflight_bronze_location(submissions_location)
-        self._preflight_bronze_location(company_facts_location)
-
-        submissions = self._ingest_submissions_to_bronze(
+        submissions = self._recover_submissions_bronze(
             normalized_cik,
             submissions_location,
         )
-        company_facts = self._ingest_company_facts_to_bronze(
+        company_facts = self._recover_company_facts_bronze(
             normalized_cik,
             company_facts_location,
         )
+        if submissions is None:
+            submissions = self._ingest_submissions_to_bronze(
+                normalized_cik,
+                submissions_location,
+            )
+        if company_facts is None:
+            company_facts = self._ingest_company_facts_to_bronze(
+                normalized_cik,
+                company_facts_location,
+            )
         return SecCompanyBronzeResult(
             cik=normalized_cik,
             submissions=submissions,
@@ -167,9 +179,56 @@ class SecFinancialIngestionService:
         )
 
     @staticmethod
-    def _preflight_bronze_location(location: BronzeRunLocation) -> None:
-        if raw_json_path(location).exists() or parquet_path(location).exists():
-            raise FileExistsError("SEC Bronze artifact already exists for this run")
+    def _recovered_dataset_result(
+        cik: str,
+        location: BronzeRunLocation,
+        record_count: int,
+    ) -> SecBronzeDatasetResult:
+        return SecBronzeDatasetResult(
+            cik=cik,
+            location=location,
+            raw_json_path=location.directory / "payload.json",
+            parquet_path=location.directory / "data.parquet",
+            record_count=record_count,
+        )
+
+    def _recover_submissions_bronze(
+        self,
+        normalized_cik: str,
+        location: BronzeRunLocation,
+    ) -> SecBronzeDatasetResult | None:
+        recovered = recover_or_verify_bronze_artifacts(
+            location,
+            table_from_payload=lambda payload: sec_submissions_to_table(
+                parse_submissions(payload, expected_cik=normalized_cik)
+            ),
+        )
+        if recovered is None:
+            return None
+        return self._recovered_dataset_result(
+            normalized_cik,
+            location,
+            recovered.table.num_rows,
+        )
+
+    def _recover_company_facts_bronze(
+        self,
+        normalized_cik: str,
+        location: BronzeRunLocation,
+    ) -> SecBronzeDatasetResult | None:
+        recovered = recover_or_verify_bronze_artifacts(
+            location,
+            table_from_payload=lambda payload: sec_company_facts_to_table(
+                parse_company_facts(payload, expected_cik=normalized_cik)
+            ),
+        )
+        if recovered is None:
+            return None
+        return self._recovered_dataset_result(
+            normalized_cik,
+            location,
+            recovered.table.num_rows,
+        )
 
     def _ingest_submissions_to_bronze(
         self,

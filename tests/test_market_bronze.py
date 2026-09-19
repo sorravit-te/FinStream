@@ -13,9 +13,11 @@ from finstream.bronze.json_storage import (
     write_raw_json,
 )
 from finstream.bronze.models import BronzeRunLocation
+from finstream.bronze.recovery import BronzeRecoveryError
 from finstream.bronze.parquet_storage import (
     BronzeParquetWriteError,
     read_parquet,
+    write_parquet,
 )
 from finstream.market.bronze import (
     DAILY_MARKET_PRICE_SCHEMA,
@@ -232,6 +234,93 @@ def test_stored_raw_payload_reprocesses_without_another_provider_request(
     client.fetch_daily_time_series.assert_called_once()
 
 
+def test_same_run_raw_only_reconstructs_then_reuses_without_provider_request(
+    tmp_path: Path,
+) -> None:
+    location = _location(tmp_path)
+    payload = _payload("AAPL", [_row()])
+    write_raw_json(location, payload)
+    client = Mock(spec=TwelveDataClient)
+    service = MarketIngestionService(client)
+
+    reconstructed = service.ingest_symbol_to_bronze(
+        "AAPL", run_at=_RUN_AT, bronze_root=tmp_path / "bronze"
+    )
+    raw_bytes = reconstructed.raw_json_path.read_bytes()
+    reused = service.ingest_symbol_to_bronze(
+        "AAPL", run_at=_RUN_AT, bronze_root=tmp_path / "bronze"
+    )
+
+    assert reconstructed.record_count == reused.record_count == 1
+    assert reconstructed.parquet_path.is_file()
+    assert reused.raw_json_path.read_bytes() == raw_bytes
+    client.fetch_daily_time_series.assert_not_called()
+
+
+def test_parquet_only_run_requires_operator_action(tmp_path: Path) -> None:
+    location = _location(tmp_path)
+    write_parquet(
+        location,
+        daily_market_prices_to_table(parse_daily_time_series(_payload("AAPL", [_row()]), expected_symbol="AAPL")),
+    )
+    client = Mock(spec=TwelveDataClient)
+
+    with pytest.raises(BronzeRecoveryError, match="without Raw JSON"):
+        MarketIngestionService(client).ingest_symbol_to_bronze(
+            "AAPL", run_at=_RUN_AT, bronze_root=tmp_path / "bronze"
+        )
+
+    client.fetch_daily_time_series.assert_not_called()
+
+
+def test_mismatched_valid_raw_and_parquet_require_operator_action(
+    tmp_path: Path,
+) -> None:
+    location = _location(tmp_path)
+    raw_payload = _payload("AAPL", [_row("2026-08-28")])
+    parquet_payload = _payload("AAPL", [_row("2026-08-27")])
+    write_raw_json(location, raw_payload)
+    write_parquet(
+        location,
+        daily_market_prices_to_table(
+            parse_daily_time_series(parquet_payload, expected_symbol="AAPL")
+        ),
+    )
+    original_parquet = location.directory.joinpath("data.parquet").read_bytes()
+    client = Mock(spec=TwelveDataClient)
+
+    with pytest.raises(BronzeRecoveryError, match="does not match"):
+        MarketIngestionService(client).ingest_symbol_to_bronze(
+            "AAPL", run_at=_RUN_AT, bronze_root=tmp_path / "bronze"
+        )
+
+    assert location.directory.joinpath("data.parquet").read_bytes() == original_parquet
+    client.fetch_daily_time_series.assert_not_called()
+
+
+def test_unexpected_run_artifact_requires_operator_action(tmp_path: Path) -> None:
+    location = _location(tmp_path)
+    payload = _payload("AAPL", [_row()])
+    write_raw_json(location, payload)
+    write_parquet(
+        location,
+        daily_market_prices_to_table(
+            parse_daily_time_series(payload, expected_symbol="AAPL")
+        ),
+    )
+    extra_path = location.directory / "unexpected.tmp"
+    extra_path.write_text("operator-owned", encoding="utf-8")
+    client = Mock(spec=TwelveDataClient)
+
+    with pytest.raises(BronzeRecoveryError, match="unexpected artifacts"):
+        MarketIngestionService(client).ingest_symbol_to_bronze(
+            "AAPL", run_at=_RUN_AT, bronze_root=tmp_path / "bronze"
+        )
+
+    assert extra_path.read_text(encoding="utf-8") == "operator-owned"
+    client.fetch_daily_time_series.assert_not_called()
+
+
 def test_bronze_prevalidation_fails_before_provider_request(
     tmp_path: Path,
 ) -> None:
@@ -260,7 +349,7 @@ def test_existing_bronze_artifact_prevents_provider_request(tmp_path: Path) -> N
     client = Mock(spec=TwelveDataClient)
     service = MarketIngestionService(client)
 
-    with pytest.raises(FileExistsError):
+    with pytest.raises(BronzeRecoveryError):
         service.ingest_symbol_to_bronze(
             "AAPL",
             run_at=_RUN_AT,
