@@ -127,6 +127,32 @@ def test_metadata_and_observation_endpoints_store_exact_reprocessable_raw(tmp_pa
     source.fetch_series_observations.assert_called_once()
 
 
+def test_duplicate_observations_fail_before_bronze_persistence(tmp_path: Path) -> None:
+    source = client(
+        observations=observations_payload(
+            [
+                observation("4.33"),
+                observation("4.34"),
+            ]
+        )
+    )
+
+    with pytest.raises(
+        FredObservationValidationError,
+        match="duplicate observation occurrence",
+    ):
+        FredMacroeconomicIngestionService(source).ingest_observations_to_bronze(
+            SERIES_ID,
+            run_at=RUN_AT,
+            bronze_root=tmp_path / "bronze",
+        )
+
+    assert not location(
+        tmp_path,
+        FRED_SERIES_OBSERVATIONS_BRONZE_DATASET,
+    ).directory.exists()
+
+
 def test_empty_observations_and_complete_series_order(tmp_path: Path) -> None:
     source = client(observations=observations_payload())
     service = FredMacroeconomicIngestionService(source)

@@ -248,11 +248,27 @@ def parse_series_observations(
     if not isinstance(observation_values, list):
         raise FredObservationValidationError("observations must be a list")
 
-    observations = tuple(
-        _parse_observation(value, series_id=normalized_series_id)
-        for value in observation_values
-    )
+    observations: list[FredObservation] = []
+    seen_occurrences: set[tuple[date, date, date]] = set()
+    for value in observation_values:
+        observation = _parse_observation(value, series_id=normalized_series_id)
+        occurrence_identity = (
+            observation.observation_date,
+            observation.realtime_start,
+            observation.realtime_end,
+        )
+        if occurrence_identity in seen_occurrences:
+            raise FredObservationValidationError(
+                "duplicate observation occurrence for "
+                f"series_id={normalized_series_id}, "
+                f"observation_date={observation.observation_date}, "
+                f"realtime_start={observation.realtime_start}, "
+                f"realtime_end={observation.realtime_end}"
+            )
+        seen_occurrences.add(occurrence_identity)
+        observations.append(observation)
+
     return FredSeriesObservations(
         series_id=normalized_series_id,
-        observations=observations,
+        observations=tuple(observations),
     )

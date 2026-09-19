@@ -104,6 +104,77 @@ def test_multiple_observations_preserve_provider_order_and_series_id() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("first_value", "second_value"),
+    [
+        ("4.33", "4.33"),
+        ("4.33", "4.34"),
+        (".", "4.33"),
+    ],
+    ids=["same-value", "different-values", "missing-and-numeric"],
+)
+def test_rejects_duplicate_represented_occurrence_within_one_payload(
+    first_value: str,
+    second_value: str,
+) -> None:
+    with pytest.raises(
+        FredObservationValidationError,
+        match="duplicate observation occurrence for series_id=DFF",
+    ):
+        parse_series_observations(
+            _payload(
+                [
+                    _observation(value=first_value),
+                    _observation(value=second_value),
+                ]
+            ),
+            expected_series_id="DFF",
+        )
+
+
+def test_allows_same_observation_date_with_distinct_realtime_start() -> None:
+    result = parse_series_observations(
+        _payload(
+            [
+                _observation(),
+                _observation(realtime_start="2026-08-28"),
+            ]
+        ),
+        expected_series_id="DFF",
+    )
+
+    assert [item.realtime_start for item in result.observations] == [
+        date(2026, 8, 29),
+        date(2026, 8, 28),
+    ]
+
+
+def test_allows_same_observation_date_with_distinct_realtime_end() -> None:
+    result = parse_series_observations(
+        _payload(
+            [
+                _observation(),
+                _observation(realtime_end="2026-08-30"),
+            ]
+        ),
+        expected_series_id="DFF",
+    )
+
+    assert [item.realtime_end for item in result.observations] == [
+        date(2026, 8, 29),
+        date(2026, 8, 30),
+    ]
+
+
+def test_duplicate_validation_is_scoped_to_one_payload() -> None:
+    payload = _payload([_observation()])
+
+    first_result = parse_series_observations(payload, expected_series_id="DFF")
+    second_result = parse_series_observations(payload, expected_series_id="DFF")
+
+    assert first_result == second_result
+
+
 def test_missing_marker_becomes_none_without_dropping_observation() -> None:
     result = parse_series_observations(
         _payload([_observation(value=".")]),
