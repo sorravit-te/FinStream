@@ -2,6 +2,7 @@
 
 # Python virtual environments
 .venv/
+.venv-airflow-wsl/
 venv/
 env/
 ENV/
@@ -28,6 +29,7 @@ Desktop.ini
 # Local project output
 data/
 logs/
+.airflow/
 
 # dbt project-local artifacts
 /dbt/target/

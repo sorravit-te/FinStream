@@ -19,7 +19,10 @@ flowchart LR
     H --> I[Power BI<br/>Dashboards & Analysis]
 ```
 
-Later in V1, Apache Airflow will orchestrate pipeline execution, Docker Compose will provide reproducible local infrastructure, and GitHub Actions will provide continuous integration. These components are planned, not yet implemented.
+Apache Airflow provides the workflow orchestration layer for the batch pipeline.
+It is optional to the core FinStream package and uses a WSL2-based local runtime
+on Windows hosts. Docker Compose is a separate local-infrastructure concern,
+and GitHub Actions provides continuous integration when configured.
 
 ## Component Responsibilities
 
@@ -49,7 +52,17 @@ Gold data contains analytics-ready facts, dimensions, and marts for analytics an
 
 ### Apache Airflow
 
-Airflow will be introduced after ingestion and transformation components are stable. It orchestrates dependencies across ingestion, loading, transformation, and data quality checks; it does not own transformation business logic.
+Airflow is the workflow orchestration layer. It coordinates source
+ingestion/loading, dbt transformation, and data-quality execution without
+owning ingestion business rules, incremental logic, Bronze semantics, PostgreSQL
+loading rules, transformation logic, or data-quality policy.
+
+Market, SEC, and FRED source runtime adapters remain independent of Airflow and
+compose the existing application services with their PostgreSQL loaders. DAG
+definitions are thin orchestration and wiring code that calls those adapters;
+source components remain independently callable and testable without Airflow.
+DAG authors use Airflow 3's public `airflow.sdk` API. See [the Airflow
+orchestration contract](AIRFLOW_ORCHESTRATION.md).
 
 ### Power BI
 

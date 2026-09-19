@@ -46,7 +46,7 @@ flowchart LR
     H --> I[Power BI<br/>Dashboards & Analysis]
 ```
 
-Apache Airflow, Docker Compose, and GitHub Actions are part of the V1 implementation roadmap and will be introduced after the underlying pipeline components are stable. They are not yet implemented; automated testing is introduced incrementally alongside implemented components.
+Apache Airflow has an optional development/runtime foundation, Airflow-independent source runtime adapters for Market, SEC, and FRED, and a manually triggered V1 source pipeline DAG. The DAG currently coordinates only source runtime calls; dbt and data-quality orchestration are not included. Docker Compose and GitHub Actions remain separate planned V1 concerns. Automated testing is introduced incrementally alongside implemented components.
 
 ## Modeling Approach
 
@@ -77,6 +77,7 @@ Kafka, Apache Spark, real-time trading infrastructure, and mandatory cloud infra
 - [Data Sources](docs/DATA_SOURCES.md) — provider behavior and source constraints.
 - [Data Model](docs/DATA_MODEL.md) — logical models, grains, identities, and relationships.
 - [Roadmap](docs/ROADMAP.md) — implementation sequence and exit criteria.
+- [Airflow Orchestration Contract](docs/AIRFLOW_ORCHESTRATION.md) — orchestration ownership, runtime/task boundaries, XCom, retry/idempotency, and local-runtime contracts.
 
 ## Implementation
 

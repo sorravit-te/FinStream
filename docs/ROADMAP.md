@@ -163,6 +163,22 @@ FinStream is implemented incrementally so each data layer and component is worki
 
 ### Step 11 — Airflow Orchestration
 
+**Status:** In progress.
+
+**Completed locally:**
+
+- Step 11.1 establishes Apache Airflow as an optional, constraints-installed
+  development/runtime dependency, reserves a non-package DAG directory, and
+  defines orchestration, retry, and local WSL2 contracts.
+- Step 11.2 adds Airflow-independent Market, SEC, and FRED source runtime
+  adapters that compose the existing ingestion and PostgreSQL loading boundaries.
+- Step 11.3 adds the manually triggered `finstream_v1_pipeline` DAG, with one
+  visible source task per configured Market company, SEC company, and FRED
+  series. Source tasks share the Airflow DAG run's `run_after` value as `run_at`.
+
+dbt orchestration, data-quality orchestration, Airflow retry/task settings, and
+production scheduling remain pending.
+
 **Scope:**
 
 - Introduce Apache Airflow.
