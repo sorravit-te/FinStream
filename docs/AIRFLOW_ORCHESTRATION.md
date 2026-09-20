@@ -35,6 +35,54 @@ existing incremental Bronze ingestion boundaries; SEC uses its existing complete
 company Bronze ingestion boundary. Each adapter owns one `connect_postgres()`
 connection context and returns only after the existing source loader succeeds.
 
+`ensure_source_schema_ready(*, settings=None)` is a separate, Airflow-independent
+schema-readiness boundary. It opens one configured PostgreSQL connection and
+delegates to the existing `ensure_source_schema(connection)` database boundary;
+the connection context commits on success and rolls back on failure. It returns
+only `{schema, status}`. The DAG calls it once before source fan-out, so source
+adapters do not race to run schema DDL independently.
+
+## dbt Runtime Adapter Boundary
+
+The Airflow-independent `finstream.orchestration` package also exposes the dbt
+stage boundaries:
+
+- `run_dbt_seed(*, project_dir=None, profiles_dir=None)` invokes `dbt seed`.
+- `run_dbt_models(*, project_dir=None, profiles_dir=None)` invokes `dbt run`.
+- `run_dbt_tests(*, project_dir=None, profiles_dir=None)` invokes `dbt test`.
+
+They execute the existing dbt CLI through an argument list with no shell. By
+default, both `--project-dir` and `--profiles-dir` resolve to the repository's
+`dbt/` directory from the installed FinStream source location, rather than from
+the process working directory. This default is intended for the editable
+repository installation used for local development; callers may supply explicit
+directories when needed. dbt profile environment variables remain dbt's
+configuration contract and are inherited by the CLI process without being
+interpreted by Airflow.
+
+The V1 DAG first makes source-schema readiness the shared direct prerequisite of
+every independent source task. All source tasks then fan in to `dbt_seed`, and
+`dbt_seed` remains the sole direct prerequisite of `dbt_run`. The two quality
+tasks are independent siblings downstream of `dbt_run`:
+
+```text
+source_schema
+    -> Market / SEC / FRED source tasks
+    -> dbt_seed
+    -> dbt_run
+        -> dbt_test
+        -> quality_monitoring
+```
+
+Task results are only small success summaries and are not transformation inputs;
+dependency edges, not source XCom payloads, control this sequence. `dbt_test` is
+a blocking analytical-quality gate: a non-zero dbt result propagates as task
+failure. `quality_monitoring` calls the read-only
+`run_quality_monitoring(*, as_of, settings=None)` boundary with the deterministic
+`dag_run.run_after.date()` value. It returns structured signals without storing
+history, alerting, or thresholds. Returned monitoring `ERROR` signals remain
+non-blocking observations; an unexpected runtime exception still fails that task.
+
 ## Task Communication and Results
 
 Runtime adapters may use domain objects and database connections internally, but
@@ -52,6 +100,8 @@ SEC: {source, cik, run_id, submissions_record_count,
       company_facts_record_count, submissions_loaded, company_facts_loaded}
 FRED: {source, series_id, run_id, metadata_record_count,
        observations_record_count, metadata_loaded, observations_loaded}
+dbt: {command, return_code}
+quality monitoring: {as_of, signal_count, status_counts, signals}
 ```
 
 ## Retry, Idempotency, and `run_at`
@@ -66,10 +116,13 @@ One source runtime invocation uses one shared timezone-aware `run_at` value for
 all logically related Bronze artifacts. Its representation and run-identity
 meaning remain defined by the existing Bronze contract. Airflow source tasks pass
 their `dag_run.run_after` value unchanged as `run_at`. This value is deterministic
-and timezone-aware for one DAG run, so a retry or clear-and-rerun of a source task
-preserves the same FinStream Bronze run identity. Task wall-clock time and
-`logical_date` must not be used for this identity. No production scheduling
-policy is defined here.
+and timezone-aware for one DAG run. `ingested_at` remains that unmodified value;
+the Bronze `run_id` additionally encodes the source boundary's normalized symbol,
+CIK, or series ID. Therefore multiple entities may share one DAG-run timestamp
+without sharing a Bronze or PostgreSQL run identity, while a retry or
+clear-and-rerun of the same entity preserves its identity. Task wall-clock time,
+`logical_date`, retry number, and synthetic per-entity timestamp offsets must not
+be used. No production scheduling policy is defined here.
 
 ## Local Airflow Runtime and Dependency Boundary
 

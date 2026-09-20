@@ -41,6 +41,7 @@ def _location(tmp_path: Path) -> BronzeRunLocation:
         source=MARKET_BRONZE_SOURCE,
         dataset=MARKET_BRONZE_DATASET,
         ingested_at=_RUN_AT,
+        entity="AAPL",
     )
 
 
@@ -191,6 +192,27 @@ def test_ingest_symbol_to_bronze_writes_one_raw_and_one_structured_artifact(
     ]
     assert result.raw_json_path.is_file()
     assert result.parquet_path.is_file()
+
+
+def test_same_timestamp_distinguishes_symbols_and_reuses_the_same_symbol_run(
+    tmp_path: Path,
+) -> None:
+    client = Mock(spec=TwelveDataClient)
+    client.fetch_daily_time_series.side_effect = [
+        _payload("AAPL", [_row()]),
+        _payload("MSFT", [_row()]),
+    ]
+    service = MarketIngestionService(client)
+
+    aapl = service.ingest_symbol_to_bronze(" aapl ", run_at=_RUN_AT, bronze_root=tmp_path / "bronze")
+    msft = service.ingest_symbol_to_bronze("MSFT", run_at=_RUN_AT, bronze_root=tmp_path / "bronze")
+    replayed_aapl = service.ingest_symbol_to_bronze("AAPL", run_at=_RUN_AT, bronze_root=tmp_path / "bronze")
+
+    assert aapl.location.metadata.ingested_at == msft.location.metadata.ingested_at == _RUN_AT
+    assert aapl.location.metadata.run_id != msft.location.metadata.run_id
+    assert aapl.location.directory != msft.location.directory
+    assert replayed_aapl.location == aapl.location
+    assert client.fetch_daily_time_series.call_count == 2
 
 
 def test_no_data_market_bronze_run_preserves_raw_payload_and_full_schema(

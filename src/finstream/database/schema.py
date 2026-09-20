@@ -1,9 +1,15 @@
 """Static PostgreSQL DDL for FinStream's source-aligned loading boundary."""
 
+import re
+
 import psycopg
 
 
 SOURCE_SCHEMA_NAME = "source_data"
+
+INGESTION_RUN_ID_PATTERN = (
+    "^[0-9]{8}T[0-9]{12}Z(--entity-[A-Za-z0-9_-]+)?$"
+)
 
 SOURCE_SCHEMA_DDL: tuple[str, ...] = (
     """CREATE SCHEMA IF NOT EXISTS source_data""",
@@ -23,7 +29,7 @@ SOURCE_SCHEMA_DDL: tuple[str, ...] = (
         CONSTRAINT ck_ingestion_runs_dataset_nonblank
             CHECK (btrim(dataset) <> ''),
         CONSTRAINT ck_ingestion_runs_run_id_format
-            CHECK (run_id ~ '^[0-9]{8}T[0-9]{12}Z$'),
+            CHECK (run_id ~ '^[0-9]{8}T[0-9]{12}Z(--entity-[A-Za-z0-9_-]+)?$'),
         CONSTRAINT ck_ingestion_runs_raw_path_nonblank
             CHECK (btrim(raw_json_path) <> ''),
         CONSTRAINT ck_ingestion_runs_parquet_path_nonblank
@@ -248,8 +254,62 @@ SOURCE_SCHEMA_DDL: tuple[str, ...] = (
 )
 
 
+SOURCE_SCHEMA_UPGRADE_DDL: tuple[str, ...] = (
+    """ALTER TABLE source_data.ingestion_runs
+        DROP CONSTRAINT IF EXISTS ck_ingestion_runs_run_id_format""",
+    f"""ALTER TABLE source_data.ingestion_runs
+        ADD CONSTRAINT ck_ingestion_runs_run_id_format
+        CHECK (run_id ~ '{INGESTION_RUN_ID_PATTERN}')""",
+)
+
+_INGESTION_RUN_ID_CONSTRAINT_NAME = "ck_ingestion_runs_run_id_format"
+_CANONICAL_INGESTION_RUN_ID_CONSTRAINT_DEFINITION = (
+    f"CHECK ((run_id ~ '{INGESTION_RUN_ID_PATTERN}'))"
+)
+_INGESTION_RUN_ID_CONSTRAINT_LOOKUP_SQL = """
+    SELECT pg_get_constraintdef(constraint_row.oid)
+    FROM pg_constraint AS constraint_row
+    JOIN pg_class AS table_row ON table_row.oid = constraint_row.conrelid
+    JOIN pg_namespace AS schema_row ON schema_row.oid = table_row.relnamespace
+    WHERE schema_row.nspname = %s
+      AND table_row.relname = %s
+      AND constraint_row.conname = %s
+"""
+
+
+def _is_current_ingestion_run_id_constraint(definition: object) -> bool:
+    """Return whether PostgreSQL reports the current run-ID pattern."""
+    if not isinstance(definition, str):
+        return False
+    normalized_definition = re.sub(r"\s+", "", definition).replace("::text", "")
+    normalized_canonical = re.sub(
+        r"\s+", "", _CANONICAL_INGESTION_RUN_ID_CONSTRAINT_DEFINITION
+    )
+    return normalized_definition.lower() == normalized_canonical.lower()
+
+
+def _ensure_ingestion_run_id_constraint(cursor: psycopg.Cursor) -> None:
+    """Upgrade only the named legacy run-ID check constraint when necessary."""
+    cursor.execute(
+        _INGESTION_RUN_ID_CONSTRAINT_LOOKUP_SQL,
+        (
+            SOURCE_SCHEMA_NAME,
+            "ingestion_runs",
+            _INGESTION_RUN_ID_CONSTRAINT_NAME,
+        ),
+    )
+    row = cursor.fetchone()
+    definition = row[0] if row is not None else None
+    if _is_current_ingestion_run_id_constraint(definition):
+        return
+
+    for statement in SOURCE_SCHEMA_UPGRADE_DDL:
+        cursor.execute(statement)
+
+
 def ensure_source_schema(connection: psycopg.Connection) -> None:
     """Execute source schema DDL inside the caller-owned transaction."""
     with connection.cursor() as cursor:
         for statement in SOURCE_SCHEMA_DDL:
             cursor.execute(statement)
+        _ensure_ingestion_run_id_constraint(cursor)

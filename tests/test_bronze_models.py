@@ -52,6 +52,21 @@ def test_metadata_normalizes_timestamp_and_derives_run_id() -> None:
     assert metadata.run_id == "20260829T120305123456Z"
 
 
+def test_metadata_derives_an_entity_aware_run_id_without_changing_ingested_at() -> None:
+    timestamp = datetime(2026, 8, 29, 19, 3, 5, 123456, tzinfo=timezone(timedelta(hours=7)))
+
+    metadata = BronzeIngestionMetadata.from_run(
+        source="twelve_data",
+        dataset="daily_market_prices",
+        ingested_at=timestamp,
+        entity="AAPL",
+    )
+
+    assert metadata.ingested_at == datetime(2026, 8, 29, 12, 3, 5, 123456, tzinfo=timezone.utc)
+    assert metadata.entity == "AAPL"
+    assert metadata.run_id == "20260829T120305123456Z--entity-QUFQTA"
+
+
 @pytest.mark.parametrize(
     ("field_name", "value"),
     [

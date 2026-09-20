@@ -49,7 +49,7 @@ def observations_payload(rows: list[dict] | None = None) -> dict:
 
 
 def location(tmp_path: Path, dataset: str) -> BronzeRunLocation:
-    return BronzeRunLocation.from_run(root=tmp_path / "bronze", source=FRED_BRONZE_SOURCE, dataset=dataset, ingested_at=RUN_AT)
+    return BronzeRunLocation.from_run(root=tmp_path / "bronze", source=FRED_BRONZE_SOURCE, dataset=dataset, ingested_at=RUN_AT, entity=SERIES_ID)
 
 
 def client(metadata: object | None = None, observations: object | None = None) -> Mock:
@@ -71,6 +71,30 @@ def test_constants_locations_and_explicit_schemas(tmp_path: Path) -> None:
     assert FRED_SERIES_OBSERVATIONS_SCHEMA.names == ["series_id", "realtime_start", "realtime_end", "observation_date", "value"]
     assert FRED_SERIES_OBSERVATIONS_SCHEMA.types == [pa.string(), pa.date32(), pa.date32(), pa.date32(), pa.decimal256(76, 30)]
     assert [field.nullable for field in FRED_SERIES_OBSERVATIONS_SCHEMA] == [False, False, False, False, True]
+
+
+def test_fred_same_timestamp_distinguishes_series_and_preserves_series_identity(
+    tmp_path: Path,
+) -> None:
+    unrate_metadata = metadata_payload()
+    unrate_metadata["seriess"][0]["id"] = "UNRATE"
+    source = client()
+    source.fetch_series.side_effect = [metadata_payload(), unrate_metadata]
+    source.fetch_series_observations.side_effect = [
+        observations_payload([observation()]),
+        observations_payload([observation()]),
+    ]
+    service = FredMacroeconomicIngestionService(source)
+
+    dff = service.ingest_series_to_bronze(SERIES_ID, run_at=RUN_AT, bronze_root=tmp_path / "bronze")
+    unrate = service.ingest_series_to_bronze(" UNRATE ", run_at=RUN_AT, bronze_root=tmp_path / "bronze")
+
+    assert dff.metadata.location.metadata.ingested_at == unrate.metadata.location.metadata.ingested_at == RUN_AT
+    assert dff.metadata.location.metadata.run_id == dff.observations.location.metadata.run_id
+    assert dff.metadata.location.directory != dff.observations.location.directory
+    assert dff.metadata.location.metadata.run_id != unrate.metadata.location.metadata.run_id
+    assert dff.metadata.location.directory != unrate.metadata.location.directory
+    assert unrate.series_id == "UNRATE"
 
 
 def test_metadata_conversion_preserves_values_and_normalizes_utc() -> None:

@@ -105,6 +105,7 @@ class FredMacroeconomicIngestionService:
         normalized_id = _normalize_series_id(series_id)
         location = self._bronze_location(
             dataset=FRED_SERIES_METADATA_BRONZE_DATASET,
+            entity=normalized_id,
             run_at=run_at,
             bronze_root=bronze_root,
         )
@@ -158,6 +159,7 @@ class FredMacroeconomicIngestionService:
         )
         location = self._bronze_location(
             dataset=FRED_SERIES_OBSERVATIONS_BRONZE_DATASET,
+            entity=normalized_id,
             run_at=run_at,
             bronze_root=bronze_root,
         )
@@ -218,11 +220,13 @@ class FredMacroeconomicIngestionService:
         )
         metadata_location = self._bronze_location(
             dataset=FRED_SERIES_METADATA_BRONZE_DATASET,
+            entity=normalized_id,
             run_at=run_at,
             bronze_root=bronze_root,
         )
         observations_location = self._bronze_location(
             dataset=FRED_SERIES_OBSERVATIONS_BRONZE_DATASET,
+            entity=normalized_id,
             run_at=run_at,
             bronze_root=bronze_root,
         )
@@ -342,6 +346,7 @@ class FredMacroeconomicIngestionService:
     def _bronze_location(
         *,
         dataset: str,
+        entity: str,
         run_at: datetime,
         bronze_root: str | Path,
     ) -> BronzeRunLocation:
@@ -350,6 +355,7 @@ class FredMacroeconomicIngestionService:
             source=FRED_BRONZE_SOURCE,
             dataset=dataset,
             ingested_at=run_at,
+            entity=entity,
         )
 
     @staticmethod

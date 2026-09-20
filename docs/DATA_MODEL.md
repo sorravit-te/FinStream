@@ -137,6 +137,11 @@ Natural source identifiers remain available for traceability:
 
 Gold dimensions may later use surrogate keys for warehouse relationships, but they do not replace source identifiers. Exact database key types and constraints are deferred.
 
+Bronze execution provenance is separate from these source-record identities. A
+Bronze source run preserves one normalized ingestion timestamp and distinguishes
+its normalized source entity so separate entities in one batch do not share one
+physical run; it does not change logical Silver or Gold grains.
+
 ## Data Quality Expectations
 
 ### Market Data

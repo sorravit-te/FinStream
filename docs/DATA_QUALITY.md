@@ -117,7 +117,7 @@ cross-run revisions into duplicates, or repair inconsistent committed state.
 
 | Dataset | Rule | Dimension | Layer | Severity | Current / missing |
 | --- | --- | --- | --- | --- | --- |
-| All loaded datasets | Canonical source/dataset/run identity, paths, non-negative count, and exact replay metadata/count | Validity, referential integrity | PostgreSQL | Reject | Current |
+| All loaded datasets | Canonical source/dataset/entity-aware run identity, paths, non-negative count, and exact replay metadata/count | Validity, referential integrity | PostgreSQL | Reject | Current |
 | All Bronze runs | Strict JSON, typed Arrow schema, deterministic count, and complete-pair equivalence | Validity, consistency | Bronze | Reject | Current |
 | Market | Required matching daily symbol/date, finite OHLC, and unique date per payload | Validity, uniqueness | Source parsing | Reject | Current |
 | Market | OHLC bounds and nullable non-negative volume | Consistency, domain | Source parsing and PostgreSQL | Reject | Current |

@@ -7,8 +7,10 @@ import pytest
 
 import finstream.database.schema as database_schema
 from finstream.database.schema import (
+    INGESTION_RUN_ID_PATTERN,
     SOURCE_SCHEMA_DDL,
     SOURCE_SCHEMA_NAME,
+    SOURCE_SCHEMA_UPGRADE_DDL,
     ensure_source_schema,
 )
 
@@ -98,11 +100,40 @@ def test_ingestion_runs_contract_preserves_bronze_event_identity() -> None:
     assert "constraint pk_ingestion_runs primary key (source, dataset, run_id)" in ddl
     assert "check (btrim(source) <> '')" in ddl
     assert "check (btrim(dataset) <> '')" in ddl
-    assert "check (run_id ~ '^[0-9]{8}t[0-9]{12}z$')" in ddl
+    assert (
+        "check (run_id ~ '^[0-9]{8}t[0-9]{12}z(--entity-[a-za-z0-9_-]+)?$')"
+        in ddl
+    )
     assert "check (btrim(raw_json_path) <> '')" in ddl
     assert "check (btrim(parquet_path) <> '')" in ddl
     assert "check (raw_json_path <> parquet_path)" in ddl
     assert "check (record_count >= 0)" in ddl
+
+
+def test_ingestion_run_id_constraint_accepts_legacy_and_entity_aware_formats() -> None:
+    assert re.fullmatch(INGESTION_RUN_ID_PATTERN, "20260829T120305123456Z")
+    assert re.fullmatch(
+        INGESTION_RUN_ID_PATTERN,
+        "20260829T120305123456Z--entity-QUFQTA",
+    )
+    assert not re.fullmatch(
+        INGESTION_RUN_ID_PATTERN,
+        "20260829T120305123456Z--entity-unsafe/path",
+    )
+
+
+def test_schema_upgrade_replaces_only_the_ingestion_run_id_check_constraint() -> None:
+    assert SOURCE_SCHEMA_UPGRADE_DDL == (
+        "ALTER TABLE source_data.ingestion_runs\n"
+        "        DROP CONSTRAINT IF EXISTS ck_ingestion_runs_run_id_format",
+        "ALTER TABLE source_data.ingestion_runs\n"
+        "        ADD CONSTRAINT ck_ingestion_runs_run_id_format\n"
+        "        CHECK (run_id ~ '^[0-9]{8}T[0-9]{12}Z(--entity-[A-Za-z0-9_-]+)?$')",
+    )
+
+
+def _current_constraint_definition() -> str:
+    return f"CHECK ((run_id ~ '{INGESTION_RUN_ID_PATTERN}'::text))"
 
 
 @pytest.mark.parametrize("table_name", _DATA_TABLES)
@@ -312,6 +343,7 @@ def test_ensure_source_schema_executes_once_in_caller_transaction(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     connection, cursor_context, cursor = _mock_connection()
+    cursor.fetchone.return_value = (_current_constraint_definition(),)
     connect = Mock()
     monkeypatch.setattr(database_schema.psycopg, "connect", connect)
 
@@ -321,12 +353,104 @@ def test_ensure_source_schema_executes_once_in_caller_transaction(
     cursor_context.__enter__.assert_called_once_with()
     cursor_context.__exit__.assert_called_once_with(None, None, None)
     assert cursor.execute.call_args_list == [
-        call(statement) for statement in SOURCE_SCHEMA_DDL
+        *(call(statement) for statement in SOURCE_SCHEMA_DDL),
+        call(
+            database_schema._INGESTION_RUN_ID_CONSTRAINT_LOOKUP_SQL,
+            (
+                SOURCE_SCHEMA_NAME,
+                "ingestion_runs",
+                "ck_ingestion_runs_run_id_format",
+            ),
+        ),
     ]
     connection.commit.assert_not_called()
     connection.rollback.assert_not_called()
     connection.close.assert_not_called()
     connect.assert_not_called()
+
+
+def test_ensure_source_schema_replaces_a_legacy_run_id_constraint_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    connection, _, cursor = _mock_connection()
+    cursor.fetchone.return_value = (
+        "CHECK ((run_id ~ '^[0-9]{8}T[0-9]{12}Z$'::text))",
+    )
+    connect = Mock()
+    monkeypatch.setattr(database_schema.psycopg, "connect", connect)
+
+    ensure_source_schema(connection)
+
+    assert cursor.execute.call_args_list == [
+        *(call(statement) for statement in SOURCE_SCHEMA_DDL),
+        call(
+            database_schema._INGESTION_RUN_ID_CONSTRAINT_LOOKUP_SQL,
+            (
+                SOURCE_SCHEMA_NAME,
+                "ingestion_runs",
+                "ck_ingestion_runs_run_id_format",
+            ),
+        ),
+        *(call(statement) for statement in SOURCE_SCHEMA_UPGRADE_DDL),
+    ]
+    connect.assert_not_called()
+
+
+def test_ensure_source_schema_adds_the_current_constraint_when_missing() -> None:
+    connection, _, cursor = _mock_connection()
+    cursor.fetchone.return_value = None
+
+    ensure_source_schema(connection)
+
+    assert cursor.execute.call_args_list[-2:] == [
+        *(call(statement) for statement in SOURCE_SCHEMA_UPGRADE_DDL),
+    ]
+
+
+def test_ensure_source_schema_repeatedly_keeps_current_constraint_unchanged() -> None:
+    connection, _, cursor = _mock_connection()
+    cursor.fetchone.side_effect = [
+        (_current_constraint_definition(),),
+        (_current_constraint_definition(),),
+    ]
+
+    ensure_source_schema(connection)
+    ensure_source_schema(connection)
+
+    assert cursor.execute.call_args_list == [
+        *(call(statement) for statement in SOURCE_SCHEMA_DDL),
+        call(
+            database_schema._INGESTION_RUN_ID_CONSTRAINT_LOOKUP_SQL,
+            (
+                SOURCE_SCHEMA_NAME,
+                "ingestion_runs",
+                "ck_ingestion_runs_run_id_format",
+            ),
+        ),
+        *(call(statement) for statement in SOURCE_SCHEMA_DDL),
+        call(
+            database_schema._INGESTION_RUN_ID_CONSTRAINT_LOOKUP_SQL,
+            (
+                SOURCE_SCHEMA_NAME,
+                "ingestion_runs",
+                "ck_ingestion_runs_run_id_format",
+            ),
+        ),
+    ]
+    assert all(
+        "drop constraint" not in str(executed.args[0]).lower()
+        for executed in cursor.execute.call_args_list
+    )
+
+
+def test_schema_upgrade_targets_only_the_named_run_id_constraint() -> None:
+    upgrade_sql = "\n".join(SOURCE_SCHEMA_UPGRADE_DDL).lower()
+
+    assert "ck_ingestion_runs_run_id_format" in upgrade_sql
+    assert "drop constraint if exists" in upgrade_sql
+    assert "drop constraint if exists ck_" not in upgrade_sql.replace(
+        "ck_ingestion_runs_run_id_format", ""
+    )
 
 
 def test_ensure_source_schema_propagates_error_and_stops_execution() -> None:

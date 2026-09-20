@@ -81,13 +81,16 @@ def _filing_row(**overrides: object) -> dict[str, object]:
     return row
 
 
-def _submissions_payload(*rows: dict[str, object]) -> dict:
+def _submissions_payload(
+    *rows: dict[str, object],
+    cik: str = _CIK,
+) -> dict:
     recent = {
         field: [row[field] for row in rows]
         for field in _RECENT_FIELDS
     }
     return {
-        "cik": "320193",
+        "cik": str(int(cik)),
         "name": "Apple Inc.",
         "filings": {"recent": recent, "files": []},
     }
@@ -109,9 +112,12 @@ def _occurrence(**overrides: object) -> dict[str, object]:
     return value
 
 
-def _company_facts_payload(*occurrences: dict[str, object]) -> dict:
+def _company_facts_payload(
+    *occurrences: dict[str, object],
+    cik: str = _CIK,
+) -> dict:
     return {
-        "cik": 320193,
+        "cik": int(cik),
         "entityName": "Apple Inc.",
         "facts": {
             "us-gaap": {
@@ -133,6 +139,7 @@ def _location(tmp_path: Path, dataset: str) -> BronzeRunLocation:
         source=SEC_BRONZE_SOURCE,
         dataset=dataset,
         ingested_at=_RUN_AT,
+        entity="0000320193",
     )
 
 
@@ -147,6 +154,32 @@ def test_sec_bronze_locations_use_distinct_datasets_and_same_run_id(
     assert SEC_COMPANY_FACTS_BRONZE_DATASET == "company_facts"
     assert submissions.metadata.run_id == facts.metadata.run_id
     assert submissions.directory != facts.directory
+
+
+def test_sec_same_timestamp_distinguishes_ciks_and_preserves_company_identity(
+    tmp_path: Path,
+) -> None:
+    msft_cik = "0000789019"
+    client = Mock(spec=SecEdgarClient)
+    client.fetch_submissions.side_effect = [
+        _submissions_payload(_filing_row()),
+        _submissions_payload(_filing_row(), cik=msft_cik),
+    ]
+    client.fetch_company_facts.side_effect = [
+        _company_facts_payload(_occurrence()),
+        _company_facts_payload(_occurrence(), cik=msft_cik),
+    ]
+    service = SecFinancialIngestionService(client, request_delay_seconds=0)
+
+    aapl = service.ingest_company_to_bronze(_CIK, run_at=_RUN_AT, bronze_root=tmp_path / "bronze")
+    msft = service.ingest_company_to_bronze("789019", run_at=_RUN_AT, bronze_root=tmp_path / "bronze")
+
+    assert aapl.submissions.location.metadata.ingested_at == msft.submissions.location.metadata.ingested_at == _RUN_AT
+    assert aapl.submissions.location.metadata.run_id == aapl.company_facts.location.metadata.run_id
+    assert aapl.submissions.location.directory != aapl.company_facts.location.directory
+    assert aapl.submissions.location.metadata.run_id != msft.submissions.location.metadata.run_id
+    assert aapl.submissions.location.directory != msft.submissions.location.directory
+    assert msft.cik == msft_cik
 
 
 def test_submissions_schema_is_exact() -> None:
@@ -652,7 +685,7 @@ def test_submissions_failure_ordering(tmp_path: Path, monkeypatch: pytest.Monkey
     monkeypatch.setattr(sec_ingestion, "write_parquet", Mock(side_effect=BronzeParquetWriteError("parquet failed")))
     with pytest.raises(BronzeParquetWriteError):
         service.ingest_company_to_bronze(320193, run_at=_RUN_AT, bronze_root=tmp_path / "parquet")
-    location = BronzeRunLocation.from_run(root=tmp_path / "parquet", source=SEC_BRONZE_SOURCE, dataset=SEC_SUBMISSIONS_BRONZE_DATASET, ingested_at=_RUN_AT)
+    location = BronzeRunLocation.from_run(root=tmp_path / "parquet", source=SEC_BRONZE_SOURCE, dataset=SEC_SUBMISSIONS_BRONZE_DATASET, ingested_at=_RUN_AT, entity="0000320193")
     assert read_raw_json(location) == payload
     client.fetch_company_facts.assert_not_called()
 
@@ -665,7 +698,7 @@ def test_later_company_facts_failure_ordering(tmp_path: Path, monkeypatch: pytes
     service = SecFinancialIngestionService(client, request_delay_seconds=0)
     with pytest.raises(SecCompanyFactsValidationError):
         service.ingest_company_to_bronze(320193, run_at=_RUN_AT, bronze_root=tmp_path / "parser")
-    submissions = BronzeRunLocation.from_run(root=tmp_path / "parser", source=SEC_BRONZE_SOURCE, dataset=SEC_SUBMISSIONS_BRONZE_DATASET, ingested_at=_RUN_AT)
+    submissions = BronzeRunLocation.from_run(root=tmp_path / "parser", source=SEC_BRONZE_SOURCE, dataset=SEC_SUBMISSIONS_BRONZE_DATASET, ingested_at=_RUN_AT, entity="0000320193")
     assert read_parquet(submissions).num_rows == 1
     client.fetch_company_facts.return_value = _company_facts_payload(_occurrence())
     monkeypatch.setattr(sec_ingestion, "sec_company_facts_to_table", Mock(side_effect=SecBronzeValidationError("facts arrow")))

@@ -54,12 +54,14 @@ def _result(
     records: list[DailyMarketPrice] | None = None,
     table: pa.Table | None = None,
     run_at: datetime = _RUN_AT,
+    entity: str | None = None,
 ) -> MarketBronzeResult:
     location = BronzeRunLocation.from_run(
         root=tmp_path / "bronze",
         source=source,
         dataset=dataset,
         ingested_at=run_at,
+        entity=entity,
     )
     write_raw_json(location, {"source": source, "dataset": dataset})
     persisted_table = (
@@ -199,7 +201,7 @@ def test_loads_valid_zero_row_run_without_market_executemany(tmp_path: Path) -> 
 
 
 def test_exact_non_empty_market_replay_is_a_verified_no_op(tmp_path: Path) -> None:
-    result = _result(tmp_path, records=[_record()])
+    result = _result(tmp_path, records=[_record()], entity="AAPL")
     connection, _, cursor = _mock_connection()
     _configure_verified_replay(cursor, result)
 

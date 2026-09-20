@@ -175,9 +175,21 @@ FinStream is implemented incrementally so each data layer and component is worki
 - Step 11.3 adds the manually triggered `finstream_v1_pipeline` DAG, with one
   visible source task per configured Market company, SEC company, and FRED
   series. Source tasks share the Airflow DAG run's `run_after` value as `run_at`.
+- Step 11.4 adds Airflow-independent dbt seed and model runtime adapters, then
+  makes all source tasks direct prerequisites of `dbt_seed` and `dbt_seed` the
+  sole direct prerequisite of `dbt_run` in the manually triggered V1 DAG.
+- The current Airflow orchestration work corrects Bronze and PostgreSQL source
+  run identity so source entities sharing one DAG-run timestamp have distinct,
+  deterministic run IDs without changing `run_at`.
+- The current DAG performs one shared PostgreSQL source-schema readiness stage
+  before source-task fan-out, including a conditional legacy run-ID constraint
+  upgrade when required.
+- Step 11.5 adds sibling `dbt_test` and read-only `quality_monitoring` tasks
+  after `dbt_run`. dbt tests are blocking analytical gates; returned monitoring
+  signals remain structured non-blocking observations.
 
-dbt orchestration, data-quality orchestration, Airflow retry/task settings, and
-production scheduling remain pending.
+Operational retry/task settings, scheduling policy, and final end-to-end
+Airflow validation remain pending.
 
 **Scope:**
 

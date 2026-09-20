@@ -14,6 +14,7 @@ import finstream.bronze.parquet_storage as bronze_parquet_storage
 import finstream.bronze.paths as bronze_paths
 from finstream.bronze.json_storage import read_raw_json
 from finstream.bronze.parquet_storage import read_parquet
+from finstream.bronze.paths import format_bronze_run_id
 from finstream.fred.bronze import (
     FRED_BRONZE_SOURCE,
     FRED_SERIES_METADATA_BRONZE_DATASET,
@@ -249,6 +250,7 @@ def test_representative_cross_source_ingestion_is_traceable_and_reprocessable(
             MARKET_BRONZE_DATASET,
             market_payload,
             DAILY_MARKET_PRICE_SCHEMA,
+            "AAPL",
         ),
         (
             sec.submissions,
@@ -256,6 +258,7 @@ def test_representative_cross_source_ingestion_is_traceable_and_reprocessable(
             SEC_SUBMISSIONS_BRONZE_DATASET,
             submissions_payload,
             SEC_SUBMISSIONS_SCHEMA,
+            _CIK,
         ),
         (
             sec.company_facts,
@@ -263,6 +266,7 @@ def test_representative_cross_source_ingestion_is_traceable_and_reprocessable(
             SEC_COMPANY_FACTS_BRONZE_DATASET,
             facts_payload,
             SEC_COMPANY_FACTS_SCHEMA,
+            _CIK,
         ),
         (
             fred.metadata,
@@ -270,6 +274,7 @@ def test_representative_cross_source_ingestion_is_traceable_and_reprocessable(
             FRED_SERIES_METADATA_BRONZE_DATASET,
             metadata_payload,
             FRED_SERIES_METADATA_SCHEMA,
+            _SERIES_ID,
         ),
         (
             fred.observations,
@@ -277,25 +282,28 @@ def test_representative_cross_source_ingestion_is_traceable_and_reprocessable(
             FRED_SERIES_OBSERVATIONS_BRONZE_DATASET,
             observations_payload,
             FRED_SERIES_OBSERVATIONS_SCHEMA,
+            _SERIES_ID,
         ),
     ]
 
     artifact_paths: list[Path] = []
     directories: set[Path] = set()
     tables: dict[tuple[str, str], pa.Table] = {}
-    for result, source, dataset, payload, schema in datasets:
+    for result, source, dataset, payload, schema, entity in datasets:
         location = result.location
+        expected_run_id = format_bronze_run_id(_RUN_AT, entity=entity)
         expected_directory = (
             bronze_root
             / source
             / dataset
             / "ingestion_date=2026-08-30"
-            / f"run_id={_RUN_ID}"
+            / f"run_id={expected_run_id}"
         )
         assert location.metadata.source == source
         assert location.metadata.dataset == dataset
         assert location.metadata.ingested_at == _CANONICAL_RUN_AT
-        assert location.metadata.run_id == _RUN_ID
+        assert location.metadata.entity == entity
+        assert location.metadata.run_id == expected_run_id
         assert location.directory == expected_directory
         assert result.raw_json_path == expected_directory / "payload.json"
         assert result.parquet_path == expected_directory / "data.parquet"
@@ -315,7 +323,11 @@ def test_representative_cross_source_ingestion_is_traceable_and_reprocessable(
     assert len(artifact_paths) == 10
     assert all(path.is_file() for path in artifact_paths)
     assert {path.name for path in artifact_paths} == {"payload.json", "data.parquet"}
-    assert {result.location.metadata.run_id for result, *_ in datasets} == {_RUN_ID}
+    assert {result.location.metadata.run_id for result, *_ in datasets} == {
+        format_bronze_run_id(_RUN_AT, entity="AAPL"),
+        format_bronze_run_id(_RUN_AT, entity=_CIK),
+        format_bronze_run_id(_RUN_AT, entity=_SERIES_ID),
+    }
 
     assert isinstance(
         tables[(MARKET_BRONZE_SOURCE, MARKET_BRONZE_DATASET)]

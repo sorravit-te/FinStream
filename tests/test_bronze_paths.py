@@ -57,6 +57,37 @@ def test_run_id_always_includes_microseconds() -> None:
     assert format_bronze_run_id(timestamp) == "20260829T120305000000Z"
 
 
+def test_entity_aware_run_ids_are_distinct_deterministic_and_path_safe() -> None:
+    aapl_run_id = format_bronze_run_id(_RUN_AT, entity="AAPL")
+    msft_run_id = format_bronze_run_id(_RUN_AT, entity="MSFT")
+
+    assert aapl_run_id == "20260829T120305123456Z--entity-QUFQTA"
+    assert msft_run_id == "20260829T120305123456Z--entity-TVNGVA"
+    assert aapl_run_id != msft_run_id
+    assert format_bronze_run_id(_RUN_AT, entity="AAPL") == aapl_run_id
+    assert "/" not in aapl_run_id
+    assert "\\" not in aapl_run_id
+
+
+def test_entity_aware_directory_keeps_the_shared_ingestion_timestamp() -> None:
+    aapl_path = build_bronze_run_directory(
+        source="twelve_data",
+        dataset="daily_market_prices",
+        run_at=_RUN_AT,
+        entity="AAPL",
+    )
+    msft_path = build_bronze_run_directory(
+        source="twelve_data",
+        dataset="daily_market_prices",
+        run_at=_RUN_AT,
+        entity="MSFT",
+    )
+
+    assert aapl_path.parent == msft_path.parent
+    assert aapl_path != msft_path
+    assert aapl_path.name == "run_id=20260829T120305123456Z--entity-QUFQTA"
+
+
 def test_non_utc_timestamp_normalizes_before_partitioning() -> None:
     timestamp = datetime(
         2026,

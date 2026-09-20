@@ -12,9 +12,10 @@ corrections.
 
 - **Source record identity** is the dataset-specific identity of a represented
   provider record or occurrence. It does not include `run_id`.
-- **Ingestion run identity** is `(source, dataset, run_id)`. `run_id` is the
-  UTC `ingested_at` instant formatted to microsecond precision and is execution
-  provenance, not source business identity.
+- **Ingestion run identity** is `(source, dataset, run_id)`. `ingested_at` is
+  the true UTC-normalized ingestion instant. For entity-aware source runs,
+  `run_id` combines its microsecond timestamp prefix with the normalized source
+  entity; it is execution provenance, not source business identity.
 - **Bronze artifact identity** is `source + dataset + run_id + filename`; the
   fixed filenames are `payload.json` and `data.parquet`.
 - **PostgreSQL replay idempotency** means replaying the same already committed
@@ -30,6 +31,14 @@ corrections.
 A different `run_id` may legitimately contain the same source business identity
 because providers can revise, correct, or later reissue data. Cross-run history
 is therefore append-oriented.
+
+Current entity-aware IDs are
+`YYYYMMDDTHHMMSSffffffZ--entity-<base64url-utf8-without-padding>`. The suffix
+is a reversible, path-safe encoding of the already-normalized source entity:
+Market symbol, SEC CIK, or FRED series ID. It distinguishes entities that share
+one `ingested_at` timestamp without changing that timestamp. Historical
+timestamp-only IDs remain valid and are produced by generic Bronze callers that
+omit an entity.
 
 ## Dataset Identity and Incremental Strategy
 
@@ -68,6 +77,10 @@ Bronze artifacts are stored under:
 - Artifacts are immutable and existing files are never overwritten.
 - Different `run_id` values may contain the same logical source records.
 - `run_id` records execution provenance rather than source business identity.
+- A source boundary supplies its normalized entity when it creates a new run,
+  so different entities at the same `ingested_at` use separate directories.
+  The same normalized entity and timestamp resolve to the same directory for
+  retry and recovery.
 - Retrying the identical Bronze run verifies or reconstructs its canonical
   artifacts when their captured Raw JSON proves the same-run state.
 - Raw JSON is written before Parquet, so a partial failure can leave a raw-only
@@ -93,6 +106,11 @@ Bronze artifacts are stored under:
 
 `source_data.ingestion_runs` identifies a loaded dataset by
 `(source, dataset, run_id)`.
+
+The run-ID check constraint accepts both historical timestamp-only IDs and the
+current entity-aware suffix. Schema setup refreshes only that constraint inside
+the caller-owned transaction; it does not rewrite Bronze artifacts or source
+rows.
 
 - A first load completes source-specific validation, registers the ingestion
   run, inserts source rows, and returns the loader's existing count or combined
@@ -144,8 +162,9 @@ rules.
   date ranges and full or explicit FRED refetches remain manual backfill paths.
 - The finite FRED overlap can capture recent revisions but cannot detect deep
   historical revisions outside the requested observation window.
-- A zero-row ingestion run cannot currently be attributed from the registry
-  alone to a requested symbol, CIK, or FRED series.
+- A zero-row entity-aware run can be distinguished through its reversible
+  run-ID suffix, while historical timestamp-only rows retain their original
+  timestamp-only provenance and no separate entity column is added.
 - Valid raw-only Bronze states can reconstruct their missing Parquet artifact;
   malformed or inconsistent artifact states require operator action.
 - Transaction recovery remains caller-owned.

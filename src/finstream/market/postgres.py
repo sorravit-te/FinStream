@@ -103,6 +103,8 @@ def _validated_table(result: MarketBronzeResult) -> pa.Table:
         raise MarketPostgresLoadError(
             "Market Bronze dataset must be daily_market_prices"
         )
+    if metadata.entity is not None and metadata.entity != result.symbol:
+        raise MarketPostgresLoadError("Market Bronze entity does not match symbol")
     if result.raw_json_path != raw_json_path(result.location):
         raise MarketPostgresLoadError("Market Bronze raw JSON path is not canonical")
     if result.parquet_path != parquet_path(result.location):

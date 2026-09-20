@@ -1,13 +1,18 @@
-"""Manually triggered source-runtime orchestration for FinStream V1."""
+"""Manually triggered source and dbt orchestration for FinStream V1."""
 
 from airflow.sdk import dag, task
 from airflow.sdk.types import DagRunProtocol
 
 from finstream.fred.series import INITIAL_FRED_SERIES_IDS
 from finstream.orchestration import (
+    ensure_source_schema_ready,
+    run_dbt_models,
+    run_dbt_seed,
+    run_dbt_tests,
     run_fred_source,
     run_market_source,
     run_sec_source,
+    run_quality_monitoring,
 )
 from finstream.sec.companies import INITIAL_SEC_COMPANIES
 
@@ -18,7 +23,7 @@ from finstream.sec.companies import INITIAL_SEC_COMPANIES
     catchup=False,
 )
 def finstream_v1_pipeline():
-    """Create independent source tasks for the configured FinStream entities."""
+    """Create source tasks followed by the FinStream dbt seed and run stages."""
 
     @task
     def market_source_task(
@@ -41,16 +46,51 @@ def finstream_v1_pipeline():
     ) -> dict[str, str | int]:
         return run_fred_source(series_id, run_at=dag_run.run_after)
 
+    @task(task_id="source_schema")
+    def source_schema_task() -> dict[str, str]:
+        return ensure_source_schema_ready()
+
+    @task(task_id="dbt_seed")
+    def dbt_seed_task() -> dict[str, str | int]:
+        return run_dbt_seed()
+
+    @task(task_id="dbt_run")
+    def dbt_run_task() -> dict[str, str | int]:
+        return run_dbt_models()
+
+    @task(task_id="dbt_test")
+    def dbt_test_task() -> dict[str, str | int]:
+        return run_dbt_tests()
+
+    @task(task_id="quality_monitoring")
+    def quality_monitoring_task(dag_run: DagRunProtocol) -> dict[str, object]:
+        return run_quality_monitoring(as_of=dag_run.run_after.date())
+
+    source_schema_result = source_schema_task()
+    source_task_results = []
     for company in INITIAL_SEC_COMPANIES:
-        market_source_task.override(task_id=f"market_{company.ticker.lower()}")(
-            company.ticker
+        source_task_results.append(
+            market_source_task.override(task_id=f"market_{company.ticker.lower()}")(
+                company.ticker
+            )
         )
-        sec_source_task.override(task_id=f"sec_{company.ticker.lower()}")(
-            company.cik
+        source_task_results.append(
+            sec_source_task.override(task_id=f"sec_{company.ticker.lower()}")(company.cik)
         )
 
     for series_id in INITIAL_FRED_SERIES_IDS:
-        fred_source_task.override(task_id=f"fred_{series_id.lower()}")(series_id)
+        source_task_results.append(
+            fred_source_task.override(task_id=f"fred_{series_id.lower()}")(series_id)
+        )
+
+    dbt_seed_result = dbt_seed_task()
+    for source_task_result in source_task_results:
+        source_schema_result >> source_task_result
+        source_task_result >> dbt_seed_result
+    dbt_run_result = dbt_run_task()
+    dbt_seed_result >> dbt_run_result
+    dbt_run_result >> dbt_test_task()
+    dbt_run_result >> quality_monitoring_task()
 
 
 finstream_v1_pipeline_dag = finstream_v1_pipeline()

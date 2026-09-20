@@ -1,5 +1,6 @@
 """Pure path construction for local Bronze storage."""
 
+import base64
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -35,10 +36,38 @@ def normalize_bronze_run_timestamp(timestamp: datetime) -> datetime:
     return timestamp.astimezone(timezone.utc)
 
 
-def format_bronze_run_id(timestamp: datetime) -> str:
-    """Format one ingestion instant as a canonical microsecond UTC run ID."""
+def validate_bronze_run_entity(entity: object) -> str:
+    """Validate a caller-normalized source entity for a Bronze run identity."""
+    if (
+        not isinstance(entity, str)
+        or not entity
+        or entity != entity.strip()
+    ):
+        raise BronzePathValidationError(
+            "entity must be a non-blank normalized string"
+        )
+    return entity
+
+
+def encode_bronze_run_entity(entity: str) -> str:
+    """Return a reversible path-safe representation of a normalized entity."""
+    validated_entity = validate_bronze_run_entity(entity)
+    return base64.urlsafe_b64encode(validated_entity.encode("utf-8")).decode(
+        "ascii"
+    ).rstrip("=")
+
+
+def format_bronze_run_id(
+    timestamp: datetime,
+    *,
+    entity: str | None = None,
+) -> str:
+    """Format a UTC ingestion instant with an optional source-entity suffix."""
     canonical_timestamp = normalize_bronze_run_timestamp(timestamp)
-    return canonical_timestamp.strftime("%Y%m%dT%H%M%S%fZ")
+    timestamp_run_id = canonical_timestamp.strftime("%Y%m%dT%H%M%S%fZ")
+    if entity is None:
+        return timestamp_run_id
+    return f"{timestamp_run_id}--entity-{encode_bronze_run_entity(entity)}"
 
 
 def build_bronze_run_directory(
@@ -47,6 +76,7 @@ def build_bronze_run_directory(
     source: str,
     dataset: str,
     run_at: datetime,
+    entity: str | None = None,
 ) -> Path:
     """Build the deterministic directory for one Bronze ingestion run."""
     canonical_timestamp = normalize_bronze_run_timestamp(run_at)
@@ -63,5 +93,5 @@ def build_bronze_run_directory(
         / source_component
         / dataset_component
         / f"ingestion_date={canonical_timestamp.date().isoformat()}"
-        / f"run_id={format_bronze_run_id(canonical_timestamp)}"
+        / f"run_id={format_bronze_run_id(canonical_timestamp, entity=entity)}"
     )

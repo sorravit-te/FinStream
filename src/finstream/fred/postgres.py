@@ -170,6 +170,8 @@ def _preflight_dataset(
         raise FredPostgresLoadError("FRED Bronze source must be fred")
     if metadata.dataset != expected_dataset:
         raise FredPostgresLoadError("FRED Bronze dataset does not match this loader")
+    if metadata.entity is not None and metadata.entity != series_id:
+        raise FredPostgresLoadError("FRED Bronze entity does not match series ID")
     if result.raw_json_path != raw_json_path(result.location):
         raise FredPostgresLoadError("FRED Bronze raw JSON path is not canonical")
     if result.parquet_path != parquet_path(result.location):

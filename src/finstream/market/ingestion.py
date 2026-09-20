@@ -161,6 +161,7 @@ class MarketIngestionService:
             source=MARKET_BRONZE_SOURCE,
             dataset=MARKET_BRONZE_DATASET,
             ingested_at=run_at,
+            entity=normalized_symbol,
         )
         recovered = recover_or_verify_bronze_artifacts(
             location,

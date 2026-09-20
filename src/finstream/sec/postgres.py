@@ -141,6 +141,8 @@ def _preflight_dataset(
         raise SecPostgresLoadError("SEC Bronze source must be sec_edgar")
     if metadata.dataset != expected_dataset:
         raise SecPostgresLoadError("SEC Bronze dataset does not match this loader")
+    if metadata.entity is not None and metadata.entity != cik:
+        raise SecPostgresLoadError("SEC Bronze entity does not match CIK")
     if result.raw_json_path != raw_json_path(result.location):
         raise SecPostgresLoadError("SEC Bronze raw JSON path is not canonical")
     if result.parquet_path != parquet_path(result.location):

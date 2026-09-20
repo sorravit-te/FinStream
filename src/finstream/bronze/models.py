@@ -9,6 +9,7 @@ from finstream.bronze.paths import (
     build_bronze_run_directory,
     format_bronze_run_id,
     normalize_bronze_run_timestamp,
+    validate_bronze_run_entity,
     validate_bronze_path_component,
 )
 
@@ -20,6 +21,7 @@ class BronzeIngestionMetadata:
     source: str
     dataset: str
     ingested_at: datetime
+    entity: str | None = None
     run_id: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -32,11 +34,13 @@ class BronzeIngestionMetadata:
             field_name="dataset",
         )
         ingested_at = normalize_bronze_run_timestamp(self.ingested_at)
+        entity = None if self.entity is None else validate_bronze_run_entity(self.entity)
 
         object.__setattr__(self, "source", source)
         object.__setattr__(self, "dataset", dataset)
         object.__setattr__(self, "ingested_at", ingested_at)
-        object.__setattr__(self, "run_id", format_bronze_run_id(ingested_at))
+        object.__setattr__(self, "entity", entity)
+        object.__setattr__(self, "run_id", format_bronze_run_id(ingested_at, entity=entity))
 
     @classmethod
     def from_run(
@@ -45,12 +49,14 @@ class BronzeIngestionMetadata:
         source: str,
         dataset: str,
         ingested_at: datetime,
+        entity: str | None = None,
     ) -> "BronzeIngestionMetadata":
         """Create consistent canonical metadata for one ingestion instant."""
         return cls(
             source=source,
             dataset=dataset,
             ingested_at=ingested_at,
+            entity=entity,
         )
 
 
@@ -68,6 +74,7 @@ class BronzeRunLocation:
             source=self.metadata.source,
             dataset=self.metadata.dataset,
             run_at=self.metadata.ingested_at,
+            entity=self.metadata.entity,
         )
         if directory.parts[-len(expected_suffix.parts) :] != expected_suffix.parts:
             raise ValueError("Bronze directory does not match ingestion metadata")
@@ -81,12 +88,14 @@ class BronzeRunLocation:
         source: str,
         dataset: str,
         ingested_at: datetime,
+        entity: str | None = None,
     ) -> "BronzeRunLocation":
         """Create canonical metadata and its matching Bronze directory."""
         metadata = BronzeIngestionMetadata.from_run(
             source=source,
             dataset=dataset,
             ingested_at=ingested_at,
+            entity=entity,
         )
         return cls(
             metadata=metadata,
@@ -95,5 +104,6 @@ class BronzeRunLocation:
                 source=metadata.source,
                 dataset=metadata.dataset,
                 run_at=metadata.ingested_at,
+                entity=metadata.entity,
             ),
         )

@@ -73,12 +73,14 @@ def _location(
     source: str,
     dataset: str,
     run_at: datetime,
+    entity: str | None = None,
 ) -> BronzeRunLocation:
     return BronzeRunLocation.from_run(
         root=bronze_root,
         source=source,
         dataset=dataset,
         ingested_at=run_at,
+        entity=entity,
     )
 
 
@@ -118,6 +120,7 @@ def _market_result(bronze_root: Path) -> MarketBronzeResult:
         source=MARKET_BRONZE_SOURCE,
         dataset=MARKET_BRONZE_DATASET,
         run_at=_MARKET_RUN_AT,
+        entity="AAPL",
     )
     raw_path, parquet_artifact = _persist_dataset(location, table)
     return MarketBronzeResult(
@@ -207,12 +210,14 @@ def _sec_result(bronze_root: Path) -> SecCompanyBronzeResult:
         source=SEC_BRONZE_SOURCE,
         dataset=SEC_SUBMISSIONS_BRONZE_DATASET,
         run_at=_SEC_RUN_AT,
+        entity=_CIK,
     )
     facts_location = _location(
         bronze_root,
         source=SEC_BRONZE_SOURCE,
         dataset=SEC_COMPANY_FACTS_BRONZE_DATASET,
         run_at=_SEC_RUN_AT,
+        entity=_CIK,
     )
     submissions_raw, submissions_parquet = _persist_dataset(
         submissions_location,
@@ -288,12 +293,14 @@ def _fred_result(bronze_root: Path) -> FredSeriesBronzeResult:
         source=FRED_BRONZE_SOURCE,
         dataset=FRED_SERIES_METADATA_BRONZE_DATASET,
         run_at=_FRED_RUN_AT,
+        entity=_SERIES_ID,
     )
     observations_location = _location(
         bronze_root,
         source=FRED_BRONZE_SOURCE,
         dataset=FRED_SERIES_OBSERVATIONS_BRONZE_DATASET,
         run_at=_FRED_RUN_AT,
+        entity=_SERIES_ID,
     )
     metadata_raw, metadata_parquet = _persist_dataset(
         metadata_location,
@@ -539,3 +546,87 @@ def test_real_postgres_cross_source_loading_and_constraints(tmp_path: Path) -> N
         finally:
             connection.rollback()
             connection.close()
+
+
+@pytest.mark.integration
+def test_real_postgres_entity_aware_registry_ids_and_schema_upgrade(
+    tmp_path: Path,
+) -> None:
+    test_dsn = _test_dsn()
+    shared_run_at = datetime(2099, 12, 31, 23, 59, 53, 100004, tzinfo=timezone.utc)
+    legacy_location = _location(
+        tmp_path / "legacy",
+        source=MARKET_BRONZE_SOURCE,
+        dataset=MARKET_BRONZE_DATASET,
+        run_at=shared_run_at,
+    )
+    aapl_location = _location(
+        tmp_path / "aapl",
+        source=MARKET_BRONZE_SOURCE,
+        dataset=MARKET_BRONZE_DATASET,
+        run_at=shared_run_at,
+        entity="AAPL",
+    )
+    msft_location = _location(
+        tmp_path / "msft",
+        source=MARKET_BRONZE_SOURCE,
+        dataset=MARKET_BRONZE_DATASET,
+        run_at=shared_run_at,
+        entity="MSFT",
+    )
+    locations = (legacy_location, aapl_location, msft_location)
+    connection = psycopg.connect(test_dsn, autocommit=False)
+
+    try:
+        ensure_source_schema(connection)
+        assert legacy_location.metadata.run_id != aapl_location.metadata.run_id
+        assert aapl_location.metadata.run_id != msft_location.metadata.run_id
+        assert aapl_location.metadata.ingested_at == msft_location.metadata.ingested_at
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """SELECT pg_get_constraintdef(constraint.oid)
+                    FROM pg_constraint AS constraint
+                    JOIN pg_class AS relation ON relation.oid = constraint.conrelid
+                    JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
+                    WHERE namespace.nspname = 'source_data'
+                      AND relation.relname = 'ingestion_runs'
+                      AND constraint.conname = 'ck_ingestion_runs_run_id_format'"""
+            )
+            assert "--entity-" in cursor.fetchone()[0]
+
+            for location in locations:
+                metadata = location.metadata
+                cursor.execute(
+                    """INSERT INTO source_data.ingestion_runs (
+                           source, dataset, run_id, ingested_at, raw_json_path,
+                           parquet_path, record_count
+                       ) VALUES (%s, %s, %s, %s, %s, %s, %s)""",
+                    (
+                        metadata.source,
+                        metadata.dataset,
+                        metadata.run_id,
+                        metadata.ingested_at,
+                        str(location.directory / "payload.json"),
+                        str(location.directory / "data.parquet"),
+                        0,
+                    ),
+                )
+
+            cursor.execute(
+                """SELECT run_id
+                    FROM source_data.ingestion_runs
+                    WHERE source = %s AND dataset = %s AND ingested_at = %s
+                    ORDER BY run_id""",
+                (
+                    MARKET_BRONZE_SOURCE,
+                    MARKET_BRONZE_DATASET,
+                    shared_run_at,
+                ),
+            )
+            assert {row[0] for row in cursor.fetchall()} >= {
+                location.metadata.run_id for location in locations
+            }
+    finally:
+        connection.rollback()
+        connection.close()

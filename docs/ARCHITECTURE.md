@@ -32,7 +32,7 @@ Python communicates with external providers, manages configuration, retrieves so
 
 ### Raw / Bronze Storage
 
-Bronze storage preserves source data before business transformation. It may retain raw JSON where original API responses are useful and Parquet for structured raw datasets used downstream.
+Bronze storage preserves source data before business transformation. It may retain raw JSON where original API responses are useful and Parquet for structured raw datasets used downstream. Its immutable run identity preserves the normalized ingestion timestamp while distinguishing the normalized source entity, so concurrent batch entities do not share artifacts.
 
 ### PostgreSQL
 
@@ -61,6 +61,9 @@ Market, SEC, and FRED source runtime adapters remain independent of Airflow and
 compose the existing application services with their PostgreSQL loaders. DAG
 definitions are thin orchestration and wiring code that calls those adapters;
 source components remain independently callable and testable without Airflow.
+Before source fan-out, one schema-readiness runtime call delegates to the
+existing PostgreSQL source-schema boundary; source adapters do not run schema
+DDL independently.
 DAG authors use Airflow 3's public `airflow.sdk` API. See [the Airflow
 orchestration contract](AIRFLOW_ORCHESTRATION.md).
 

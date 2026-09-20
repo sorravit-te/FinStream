@@ -75,6 +75,7 @@ class SecFinancialIngestionService:
         normalized_cik = _normalize_cik(cik)
         location = self._bronze_location(
             dataset=SEC_SUBMISSIONS_BRONZE_DATASET,
+            entity=normalized_cik,
             run_at=run_at,
             bronze_root=bronze_root,
         )
@@ -94,6 +95,7 @@ class SecFinancialIngestionService:
         normalized_cik = _normalize_cik(cik)
         location = self._bronze_location(
             dataset=SEC_COMPANY_FACTS_BRONZE_DATASET,
+            entity=normalized_cik,
             run_at=run_at,
             bronze_root=bronze_root,
         )
@@ -113,11 +115,13 @@ class SecFinancialIngestionService:
         normalized_cik = _normalize_cik(cik)
         submissions_location = self._bronze_location(
             dataset=SEC_SUBMISSIONS_BRONZE_DATASET,
+            entity=normalized_cik,
             run_at=run_at,
             bronze_root=bronze_root,
         )
         company_facts_location = self._bronze_location(
             dataset=SEC_COMPANY_FACTS_BRONZE_DATASET,
+            entity=normalized_cik,
             run_at=run_at,
             bronze_root=bronze_root,
         )
@@ -168,6 +172,7 @@ class SecFinancialIngestionService:
     def _bronze_location(
         *,
         dataset: str,
+        entity: str,
         run_at: datetime,
         bronze_root: str | Path,
     ) -> BronzeRunLocation:
@@ -176,6 +181,7 @@ class SecFinancialIngestionService:
             source=SEC_BRONZE_SOURCE,
             dataset=dataset,
             ingested_at=run_at,
+            entity=entity,
         )
 
     @staticmethod
