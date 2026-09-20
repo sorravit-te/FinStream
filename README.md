@@ -46,7 +46,7 @@ flowchart LR
     H --> I[Power BI<br/>Dashboards & Analysis]
 ```
 
-Apache Airflow has an optional development/runtime foundation, Airflow-independent source, dbt, and quality-monitoring runtime adapters, and a manually triggered V1 pipeline DAG. The DAG coordinates configured Market, SEC, and FRED source tasks, then `dbt seed`, `dbt run`, and independent `dbt test` and read-only monitoring tasks. This V1 DAG has been locally end-to-end validated with Airflow 3.3.2; no production deployment or automatic schedule is claimed. Docker Compose and GitHub Actions remain separate planned V1 concerns. Automated testing is introduced incrementally alongside implemented components.
+Apache Airflow has an optional development/runtime foundation, Airflow-independent source, dbt, and quality-monitoring runtime adapters, and a manually triggered V1 pipeline DAG. The DAG coordinates configured Market, SEC, and FRED source tasks, then `dbt seed`, `dbt run`, and independent `dbt test` and read-only monitoring tasks. This V1 DAG has been locally end-to-end validated with Airflow 3.3.2; no production deployment or automatic schedule is claimed. Docker Compose provides PostgreSQL local infrastructure and a custom Airflow/FinStream image with local API, scheduler, and DAG-processor services; provider/runtime configuration and complete containerized pipeline execution remain unavailable. GitHub Actions remains a separate planned V1 concern. Automated testing is introduced incrementally alongside implemented components.
 
 ## Modeling Approach
 
@@ -78,6 +78,7 @@ Kafka, Apache Spark, real-time trading infrastructure, and mandatory cloud infra
 - [Data Model](docs/DATA_MODEL.md) — logical models, grains, identities, and relationships.
 - [Roadmap](docs/ROADMAP.md) — implementation sequence and exit criteria.
 - [Airflow Orchestration Contract](docs/AIRFLOW_ORCHESTRATION.md) — orchestration ownership, runtime/task boundaries, XCom, retry/idempotency, and local-runtime contracts.
+- [Docker Local Environment Contract](docs/DOCKER_LOCAL_ENVIRONMENT.md) — Docker Compose local-runtime boundaries and reproducibility requirements.
 
 ## Implementation
 
