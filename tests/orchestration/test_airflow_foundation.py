@@ -4,7 +4,7 @@ from pathlib import Path
 import tomllib
 
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_airflow_is_pinned_optional_dependency() -> None:

@@ -11,7 +11,7 @@ from finstream.fred.series import INITIAL_FRED_SERIES_IDS
 from finstream.sec.companies import INITIAL_SEC_COMPANIES
 
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DAG_PATH = REPOSITORY_ROOT / "orchestration" / "dags" / "finstream_v1_pipeline.py"
 
 
