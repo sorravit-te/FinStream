@@ -163,7 +163,7 @@ FinStream is implemented incrementally so each data layer and component is worki
 
 ### Step 11 — Airflow Orchestration
 
-**Status:** In progress.
+**Status:** Complete.
 
 **Completed locally:**
 
@@ -187,9 +187,13 @@ FinStream is implemented incrementally so each data layer and component is worki
 - Step 11.5 adds sibling `dbt_test` and read-only `quality_monitoring` tasks
   after `dbt_run`. dbt tests are blocking analytical gates; returned monitoring
   signals remain structured non-blocking observations.
-
-Operational retry/task settings, scheduling policy, and final end-to-end
-Airflow validation remain pending.
+- Step 11.6 adds fixed TaskFlow retry and failure settings: idempotent schema,
+  source, dbt seed/run, and monitoring runtime failures may retry; dbt tests
+  remain fail-fast. `schedule=None` is the explicit manually triggered V1
+  operating policy.
+- Step 11.7 validates the complete V1 pipeline locally through Airflow 3.3.2 in
+  dependency order. The Airflow DAG and each underlying FinStream component
+  remain independently testable.
 
 **Scope:**
 

@@ -104,13 +104,28 @@ dbt: {command, return_code}
 quality monitoring: {as_of, signal_count, status_counts, signals}
 ```
 
-## Retry, Idempotency, and `run_at`
+## Retry, Failure, Idempotency, and `run_at`
 
 Airflow retries are safe only because the underlying FinStream pipeline retains
 its own deterministic Bronze recovery, PostgreSQL replay verification,
 incremental-overlap, and idempotency behavior. Airflow must not duplicate,
 replace, or compensate for those mechanisms, and runtime adapters do not add
 retry loops solely for task retries.
+
+| Task category | Retries | Delay | Failure semantics |
+| --- | ---: | --- | --- |
+| `source_schema` | 1 | 1 minute | Runtime failure retries. |
+| Market, SEC, and FRED source tasks | 2 | 5 minutes | The complete entity task retries. |
+| `dbt_seed` | 1 | 1 minute | Process or runtime failure retries. |
+| `dbt_run` | 1 | 1 minute | Process or runtime failure retries. |
+| `dbt_test` | 0 | none | Analytical failure is fail-fast. |
+| `quality_monitoring` | 1 | 1 minute | Only an actual runtime exception retries. |
+
+Returned monitoring `ERROR` signals remain non-blocking structured output and do
+not trigger a retry. A monitoring runtime exception propagates normally. dbt
+test failures also propagate normally, with no retry. Normal Airflow task
+states and logs are the authoritative failure visibility; no callbacks, alert
+destination, or custom status persistence is configured.
 
 One source runtime invocation uses one shared timezone-aware `run_at` value for
 all logically related Bronze artifacts. Its representation and run-identity
@@ -122,7 +137,12 @@ CIK, or series ID. Therefore multiple entities may share one DAG-run timestamp
 without sharing a Bronze or PostgreSQL run identity, while a retry or
 clear-and-rerun of the same entity preserves its identity. Task wall-clock time,
 `logical_date`, retry number, and synthetic per-entity timestamp offsets must not
-be used. No production scheduling policy is defined here.
+be used. The monitoring task likewise reuses `dag_run.run_after.date()` on a
+retry rather than a wall-clock date.
+
+V1 is intentionally manually triggered: `schedule=None`, `catchup=False`, and
+one DAG run owns one deterministic `run_after`. No automatic production cadence
+is claimed; a future schedule requires separate requirements.
 
 ## Local Airflow Runtime and Dependency Boundary
 

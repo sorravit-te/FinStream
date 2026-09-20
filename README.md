@@ -46,7 +46,7 @@ flowchart LR
     H --> I[Power BI<br/>Dashboards & Analysis]
 ```
 
-Apache Airflow has an optional development/runtime foundation, Airflow-independent source, dbt, and quality-monitoring runtime adapters, and a manually triggered V1 pipeline DAG. The DAG coordinates configured Market, SEC, and FRED source tasks, then `dbt seed`, `dbt run`, and independent `dbt test` and read-only monitoring tasks. Docker Compose and GitHub Actions remain separate planned V1 concerns. Automated testing is introduced incrementally alongside implemented components.
+Apache Airflow has an optional development/runtime foundation, Airflow-independent source, dbt, and quality-monitoring runtime adapters, and a manually triggered V1 pipeline DAG. The DAG coordinates configured Market, SEC, and FRED source tasks, then `dbt seed`, `dbt run`, and independent `dbt test` and read-only monitoring tasks. This V1 DAG has been locally end-to-end validated with Airflow 3.3.2; no production deployment or automatic schedule is claimed. Docker Compose and GitHub Actions remain separate planned V1 concerns. Automated testing is introduced incrementally alongside implemented components.
 
 ## Modeling Approach
 
