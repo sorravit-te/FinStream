@@ -17,6 +17,7 @@ flowchart LR
     F --> G[dbt<br/>Silver & Gold Transformations]
     G --> H[Analytics Marts<br/>Prepared Datasets]
     H --> I[Power BI<br/>Dashboards & Analysis]
+    H --> J[Streamlit<br/>Interactive Analytics Application]
 ```
 
 Apache Airflow provides the workflow orchestration layer for the batch pipeline.
@@ -90,6 +91,10 @@ boundaries while making the manually triggered V1 pipeline reproducible locally.
 
 Power BI consumes prepared Gold-layer datasets. Shared business logic should be prepared upstream when appropriate rather than duplicated across dashboards.
 
+### Streamlit
+
+Streamlit provides an interactive analytical application over prepared Gold and mart outputs. It owns presentation, filtering, drill-down, and read-only exploration. It does not own shared business transformations or metric definitions, and it does not control Airflow or mutate pipeline data.
+
 ## Processing Model
 
 FinStream V1 uses scheduled batch processing. Since source publication frequencies differ, the platform does not assume every source has new data on every run. It supports detecting new or revised records, incremental processing where appropriate, safe reruns, and duplicate prevention without defining exact schedules.
@@ -105,12 +110,14 @@ FinStream V1 uses scheduled batch processing. Since source publication frequenci
 | Airflow | Workflow orchestration |
 | Docker Compose | PostgreSQL local infrastructure and Airflow Compose runtime |
 | Power BI | Consume prepared analytical datasets |
+| Streamlit | Interactive analytical application and exploration over prepared datasets |
 
 These boundaries keep components independently understandable, testable, and replaceable.
 
 ## V1 Technology Decisions
 
 The agreed V1 technologies are Python, JSON, Parquet, PostgreSQL, dbt, Apache Airflow, Docker Compose, pytest, dbt tests, GitHub Actions, and Power BI. Kafka, Apache Spark, and mandatory cloud infrastructure are intentionally outside V1 because the initial workloads are batch-oriented and do not justify that infrastructure.
+The agreed V1 technologies are Python, JSON, Parquet, PostgreSQL, dbt, Apache Airflow, Docker Compose, pytest, dbt tests, GitHub Actions, Power BI, and Streamlit. Kafka, Apache Spark, and mandatory cloud infrastructure are intentionally outside V1 because the initial workloads are batch-oriented and do not justify that infrastructure.
 
 ## Architecture Boundaries
 

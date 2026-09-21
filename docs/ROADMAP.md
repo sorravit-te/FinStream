@@ -248,7 +248,24 @@ FinStream is implemented incrementally so each data layer and component is worki
 - Gold-layer outputs can be consumed successfully through Power BI.
 - Dashboard logic does not unnecessarily duplicate shared transformation logic.
 
-### Step 15 — CI, Observability, and Final Documentation
+### Step 15 — Streamlit Analytics Application
+
+**Scope:**
+
+- Add a Streamlit application that consumes prepared analytical outputs.
+- Provide interactive company, financial, market, and macroeconomic exploration.
+- Provide read-only visibility into relevant data freshness and pipeline status.
+- Reuse Gold models and analytics marts rather than duplicating shared transformation or metric logic in Streamlit.
+- Keep Streamlit as a downstream analytical consumer, not an ingestion, transformation, or orchestration component.
+
+**Exit criteria:**
+
+- Prepared analytical outputs can be consumed successfully through Streamlit.
+- Users can interactively explore company, financial, market, and macroeconomic views using documented analytical models.
+- Shared analytical calculations remain upstream rather than being independently reimplemented in Streamlit.
+- Streamlit does not introduce stock prediction, investment recommendations, trade execution, or pipeline-control responsibilities.
+
+### Step 16 — CI, Observability, and Final Documentation
 
 **Scope:**
 

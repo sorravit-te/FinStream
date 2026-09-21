@@ -12,6 +12,7 @@ FinStream is an end-to-end batch Data Engineering project that combines corporat
 - Support incremental processing and safe reruns without duplicate records.
 - Validate important data quality rules and create analytics-ready datasets that combine the three domains.
 - Eventually provide outputs suitable for Power BI and remain reproducible and understandable to another developer.
+- Eventually provide outputs suitable for Power BI reporting/dashboards and Streamlit interactive analytical consumption, and remain reproducible and understandable to another developer.
 
 ## Initial Scope
 
@@ -48,3 +49,4 @@ V1 does not include stock price prediction, investment recommendations, trade ex
 ## Success Criteria
 
 A successful V1 can ingest all three data domains, preserve raw source data, standardize heterogeneous records, and transform them into documented analytics-ready models. It validates important quality rules, supports incremental processing, reruns safely without duplicates, and exposes datasets suitable for downstream BI consumption.
+A successful V1 can ingest all three data domains, preserve raw source data, standardize heterogeneous records, and transform them into documented analytics-ready models. It validates important quality rules, supports incremental processing, reruns safely without duplicates, and exposes datasets suitable for downstream Power BI reporting/dashboard consumption and Streamlit interactive analytical consumption.

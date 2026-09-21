@@ -44,6 +44,7 @@ flowchart LR
     F --> G[dbt<br/>Silver & Gold Transformations]
     G --> H[Analytics Marts<br/>Prepared Datasets]
     H --> I[Power BI<br/>Dashboards & Analysis]
+    H --> J[Streamlit<br/>Interactive Analytics Application]
 ```
 
 Apache Airflow has an optional development/runtime foundation, Airflow-independent source, dbt, and quality-monitoring runtime adapters, and a manually triggered V1 pipeline DAG. The DAG coordinates configured Market, SEC, and FRED source tasks, then `dbt seed`, `dbt run`, and independent `dbt test` and read-only monitoring tasks. This V1 DAG has been locally end-to-end validated with Airflow 3.3.2; no production deployment or automatic schedule is claimed. Docker Compose provides a reproducible local PostgreSQL/Airflow runtime with API, scheduler, and DAG-processor services; scheduler task-runtime configuration and durable local data volumes are available, and the complete manually triggered V1 pipeline has been validated in the local Docker environment. GitHub Actions remains a separate planned V1 concern. Automated testing is introduced incrementally alongside implemented components.
@@ -58,7 +59,7 @@ Source identifiers remain available for traceability, model grains are explicitl
 
 ## V1 Technology Direction
 
-The agreed V1 technology direction is Python; JSON and Parquet; PostgreSQL; dbt; Apache Airflow; Docker Compose; pytest and dbt tests; GitHub Actions; and Power BI. This direction describes planned V1 components, not a claim that every technology is already implemented.
+The agreed V1 technology direction is Python; JSON and Parquet; PostgreSQL; dbt; Apache Airflow; Docker Compose; pytest and dbt tests; GitHub Actions; Power BI; and Streamlit. This direction describes planned V1 components, not a claim that every technology is already implemented.
 
 Kafka, Apache Spark, real-time trading infrastructure, and mandatory cloud infrastructure are outside V1.
 
@@ -67,7 +68,7 @@ Kafka, Apache Spark, real-time trading infrastructure, and mandatory cloud infra
 - Incremental source ingestion where appropriate.
 - Idempotent processing and duplicate prevention.
 - Source-data traceability and data-quality validation.
-- Clear separation between ingestion, transformation, orchestration, and BI.
+- Clear separation between ingestion, transformation, orchestration, BI, and interactive analytical applications.
 - Reproducible local development and replaceable external-provider integrations.
 
 ## Documentation
