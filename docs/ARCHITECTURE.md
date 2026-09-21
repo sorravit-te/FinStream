@@ -20,10 +20,10 @@ flowchart LR
 ```
 
 Apache Airflow provides the workflow orchestration layer for the batch pipeline.
-It is optional to the core FinStream package and uses a WSL2-based local runtime
-on Windows hosts. Docker Compose provides the local PostgreSQL and Airflow
-runtime foundation. The remaining containerized runtime boundaries are defined
-in the [Docker Local
+It is optional to the core FinStream package and supports a WSL2-based
+non-containerized local runtime as well as Docker Compose on Windows hosts.
+Docker Compose provides the local PostgreSQL and Airflow runtime foundation.
+The remaining containerized runtime boundaries are defined in the [Docker Local
 Environment Contract](DOCKER_LOCAL_ENVIRONMENT.md). GitHub Actions provides
 continuous integration when configured.
 
@@ -76,10 +76,15 @@ Docker Compose provides PostgreSQL local service infrastructure and a custom
 FinStream Airflow runtime image without owning FinStream business logic or
 changing component boundaries. Its local runtime includes one-shot metadata
 initialization, an API server, scheduler, and DAG processor using
-`LocalExecutor`; provider/runtime configuration and complete pipeline execution
-remain outside that runtime. Its persistence, networking, and configuration
-contract is defined in the [Docker Local Environment
-Contract](DOCKER_LOCAL_ENVIRONMENT.md).
+`LocalExecutor`; scheduler task-runtime configuration is available, but provider
+calls and complete pipeline execution do not occur merely by starting the
+runtime. Its persistence, networking, and configuration contract is defined in
+the [Docker Local Environment Contract](DOCKER_LOCAL_ENVIRONMENT.md).
+
+For local Docker execution, external APIs flow through the Airflow task runtime
+to Bronze storage, PostgreSQL source data, dbt transformations, and quality
+monitoring with analytical outputs. This preserves the existing application
+boundaries while making the manually triggered V1 pipeline reproducible locally.
 
 ### Power BI
 

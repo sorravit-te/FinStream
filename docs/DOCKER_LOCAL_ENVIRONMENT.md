@@ -6,9 +6,9 @@ Docker Compose is the local-development and reproducibility environment for
 FinStream. It is not a production deployment design. The implemented scope
 includes PostgreSQL infrastructure and a reusable FinStream Airflow runtime
 image. It provides an Airflow Compose runtime for metadata initialization,
-local scheduling, DAG parsing, and local API/UI access. It does not add a
-FinStream application service, dbt container, or runnable containerized
-pipeline.
+local scheduling, DAG parsing, local API/UI access, and the existing manually
+triggered V1 pipeline. It does not add a FinStream application service, separate
+dbt container, production deployment, or automatic schedule.
 
 The existing non-containerized WSL2 Airflow workflow remains a valid,
 independent development path. Docker Compose is a separate local runtime option
@@ -61,9 +61,9 @@ the FinStream analytical database. Bootstrap, FinStream, and Airflow role and
 database identifiers must remain distinct.
 
 The bootstrap/admin role is only for initialization and local administration.
-Future FinStream runtime wiring uses the FinStream role. The Airflow runtime
-uses the separate Airflow role and database only for its metadata. Application
-schemas and tables remain owned by the existing application and
+The scheduler task runtime uses the FinStream role and database. The Airflow
+runtime uses the separate Airflow role and database only for its metadata.
+Application schemas and tables remain owned by the existing application and
 schema-initialization boundaries. The read-only
 `docker/postgres/10-init-finstream-databases.sh` initializer creates only
 databases and roles; `airflow-init` creates Airflow metadata tables through
@@ -123,8 +123,10 @@ docker run --rm --entrypoint python finstream-airflow:local -m pip check
 
 `compose.yaml` uses the shared `finstream-airflow:local` image for all Airflow
 services and builds it once through `airflow-init` using the same repository-root
-build context and Dockerfile. The runtime stays non-root as the image's
-`airflow` user.
+build context and Dockerfile. Long-running Airflow services stay non-root as
+the image's `airflow` user. The one-shot initializer temporarily uses root only
+to assign the Bronze and Airflow log volumes to `airflow:root`, then runs
+`airflow db migrate` as `airflow`.
 
 ## Configuration and Secrets
 
@@ -137,16 +139,24 @@ created from `.env.docker.example`. It is separate from the existing `.env`
 host/WSL2 contract. In particular, container-to-container PostgreSQL access
 uses the Compose service hostname, while host access and non-containerized WSL2
 access remain explicitly distinguishable and do not silently rely on
-`localhost`.
+`localhost`. It also supplies the FinStream source-task values
+`TWELVE_DATA_API_KEY`, `FRED_API_KEY`, `SEC_USER_AGENT`, and `POSTGRES_DSN`,
+plus `DBT_POSTGRES_SCHEMA`.
 
 Existing host runtime configuration remains unchanged: Python uses
 `POSTGRES_DSN`, while dbt uses `DBT_POSTGRES_HOST`, `DBT_POSTGRES_PORT`,
 `DBT_POSTGRES_USER`, `DBT_POSTGRES_PASSWORD`, `DBT_POSTGRES_DBNAME`, and
-`DBT_POSTGRES_SCHEMA`. The Airflow metadata connection is separate from those
-application settings. A small image-local helper constructs it from the
-Airflow PostgreSQL environment values with percent encoding for URI-reserved
-characters; it does not log credentials. The helper uses the installed
-`psycopg2` SQLAlchemy driver.
+`DBT_POSTGRES_SCHEMA`. For a Compose task runtime, `POSTGRES_DSN` must target
+the `postgres` service on port `5432`, not a host port, and any URI-reserved
+credential characters must be percent-encoded. Compose maps the dbt host, port,
+user, password, and database name to the FinStream database service values;
+`DBT_POSTGRES_SCHEMA` remains an explicit local value. These FinStream and dbt
+values are supplied only to `airflow-scheduler`, whose LocalExecutor task
+processes inherit the scheduler environment. The Airflow metadata connection is
+separate from those application settings. A small image-local helper constructs
+it from the Airflow PostgreSQL environment values with percent encoding for
+URI-reserved characters; it does not log credentials. The helper uses the
+installed `psycopg2` SQLAlchemy driver.
 
 `AIRFLOW_API_JWT_SECRET` belongs only in the gitignored `.env.docker` file and
 is supplied to the API server and scheduler through
@@ -171,16 +181,16 @@ authentication design.
 
 ## Persistent Runtime Data
 
-The Compose implementation must make these persistence boundaries explicit:
-
-- PostgreSQL data survives ordinary container recreation through a named or
-  otherwise explicit persistent volume.
-- Airflow service logs remain inspectable through Docker Compose logs.
-- Ephemeral Python, cache, and build artifacts do not require persistence.
-
-The PostgreSQL volume is named by Compose without a globally fixed external
-name. `docker compose down` preserves it; only an explicit `down -v` removes
-it. PostgreSQL files are not bind-mounted to a Windows directory.
+Compose persists PostgreSQL data in `postgres_data`, the default FinStream
+Bronze path in `bronze_data` at `/opt/airflow/finstream/data/bronze`, and
+Airflow task logs in `airflow_logs` at `/opt/airflow/logs`. The log volume is
+shared by the scheduler and API server so task logs remain available after
+ordinary container recreation. These named volumes have no globally fixed
+external names. `docker compose down` preserves them; only an explicit
+`down -v` removes them. PostgreSQL files are not bind-mounted to a Windows
+directory. The one-shot initializer assigns the Bronze and log-volume paths to
+the non-root `airflow` user. Ephemeral Python, cache, and build artifacts do not
+require persistence.
 
 ## PostgreSQL Connection Contract
 
@@ -198,7 +208,8 @@ The API/UI service exposes container port `8080` only through
 `127.0.0.1:${AIRFLOW_HOST_PORT:-8080}`. It is available locally at
 `http://localhost:<AIRFLOW_HOST_PORT>`. PostgreSQL remains exposed for existing
 local development, dbt, and BI workflows. Container-to-container traffic uses
-Compose DNS service names. External source APIs remain unwired in this runtime.
+Compose DNS service names. External source credentials are available only to
+the scheduler task runtime; no provider call is made merely by starting Compose.
 
 No reverse proxy or additional network infrastructure is part of this contract.
 PostgreSQL host exposure is configurable through `POSTGRES_HOST_PORT`, with an
@@ -209,7 +220,8 @@ traffic continues to use Compose service DNS and internal container ports.
 ## Local Runtime Commands
 
 Copy the tracked template before any Compose command, then fill in every
-required blank password and secret value in `.env.docker`:
+required blank password, secret, provider setting, database DSN, and dbt schema
+value in `.env.docker`:
 
 ```powershell
 Copy-Item .env.docker.example .env.docker
@@ -243,14 +255,22 @@ docker compose --env-file .env.docker exec airflow-scheduler airflow dags list
 docker compose --env-file .env.docker exec airflow-scheduler airflow dags list-import-errors
 ```
 
+The V1 DAG uses `schedule=None` and `catchup=False`; it runs only after a
+manual trigger. If Airflow reports it paused, unpause it before triggering:
+
+```powershell
+docker compose --env-file .env.docker exec airflow-scheduler airflow dags unpause finstream_v1_pipeline
+docker compose --env-file .env.docker exec airflow-scheduler airflow dags trigger finstream_v1_pipeline
+```
+
 Stop services without deleting persistent database state:
 
 ```powershell
 docker compose --env-file .env.docker down
 ```
 
-Reset the PostgreSQL environment only when deleting all local Compose database
-data is intentional:
+Reset all local Compose runtime data only when deleting PostgreSQL, Bronze, and
+Airflow log volumes is intentional:
 
 ```powershell
 docker compose --env-file .env.docker down -v
@@ -274,9 +294,9 @@ uncommitted credentials and configuration.
 - New analytics marts or Power BI implementation.
 - CI/CD.
 
-## Future Validation Expectations
+## Validated Local Pipeline
 
-The local runtime validates:
+The Dockerized local environment has validated:
 
 - Docker Compose configuration, custom image build, and non-root service users.
 - PostgreSQL health, separate database and role creation, Airflow metadata
@@ -284,8 +304,16 @@ The local runtime validates:
 - API, scheduler, and DAG-processor component health.
 - Loopback API/UI reachability, LocalExecutor configuration, the internal
   execution API hostname, read-only DAG distribution, and DAG discovery.
+- Scheduler-scoped FinStream source and dbt runtime configuration, plus named
+  PostgreSQL, Bronze, and Airflow task-log persistence.
+- One manually triggered V1 pipeline through Market, SEC EDGAR, and FRED source
+  tasks; Bronze persistence; PostgreSQL source loading; `dbt seed`; `dbt run`;
+  the blocking `dbt test` gate; and sibling read-only quality monitoring.
 
-The following remain outside the implemented local environment: provider and
-FinStream runtime credentials, Bronze volume wiring and persistence, persistent
-Airflow logs or Simple Auth credentials, containerized dbt execution, a
-FinStream DAG run, and complete pipeline validation.
+Provider credentials remain local-only values in `.env.docker`. PostgreSQL,
+Bronze, and Airflow task-log persistence survive ordinary container recreation;
+the destructive `docker compose down -v` removes those Docker-local volumes.
+Simple Auth credentials remain ephemeral.
+
+The environment remains local-development only. No production deployment or
+automatic schedule is claimed.

@@ -209,6 +209,8 @@ FinStream is implemented incrementally so each data layer and component is worki
 
 ### Step 12 — Dockerized Local Environment
 
+**Status:** Complete.
+
 **Scope:**
 
 - Containerize required local services.
