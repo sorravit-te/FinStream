@@ -1,7 +1,7 @@
-taxonomy,concept,metric_key,metric_name
-us-gaap,RevenueFromContractWithCustomerExcludingAssessedTax,contract_revenue_excluding_assessed_tax,"Revenue from Contracts with Customers, Excluding Assessed Tax"
-us-gaap,NetIncomeLoss,net_income_attributable_to_parent,Net Income (Loss) Attributable to Parent
-us-gaap,Assets,total_assets,Total Assets
-us-gaap,Liabilities,total_liabilities,Total Liabilities
-us-gaap,StockholdersEquity,equity_attributable_to_parent,Equity Attributable to Parent
-us-gaap,NetCashProvidedByUsedInOperatingActivities,operating_cash_flow,Operating Cash Flow
+taxonomy,concept,metric_key,metric_name,period_type
+us-gaap,RevenueFromContractWithCustomerExcludingAssessedTax,contract_revenue_excluding_assessed_tax,"Revenue from Contracts with Customers, Excluding Assessed Tax",duration
+us-gaap,NetIncomeLoss,net_income_attributable_to_parent,Net Income (Loss) Attributable to Parent,duration
+us-gaap,Assets,total_assets,Total Assets,instant
+us-gaap,Liabilities,total_liabilities,Total Liabilities,instant
+us-gaap,StockholdersEquity,equity_attributable_to_parent,Equity Attributable to Parent,instant
+us-gaap,NetCashProvidedByUsedInOperatingActivities,operating_cash_flow,Operating Cash Flow,duration

@@ -67,3 +67,92 @@ models:
           Percentage price return relative to previous_close ((close /
           previous_close) - 1.0). Null on earliest session, if previous_close is
           null, or if previous_close is zero.
+
+  - name: mart_company_financial_growth
+    description: >-
+      Authoritative annual company financial-growth mart over Gold financial facts
+      and analytical company identity crosswalk. Primary grain is one row per
+      company_key, metric_key, end_date, and unit. Preserves native corporate fiscal
+      calendars and regulatory SEC source provenance (source_cik). Seamlessly unifies
+      historical predecessor and current successor registrants under company_key
+      without fabricating synthetic periods, cross-currency conversions, or calendar
+      coercion. Representative annual facts (form 10-K or 10-K/A, fiscal_period FY)
+      are ranked by filed_date desc and accession_number desc. Compares consecutive
+      annual periods spanning 350 to 380 days, using ABS(previous_value) for growth rate
+      and evaluating growth rate to null when previous_value is zero.
+    columns:
+      - name: company_key
+        description: Stable FinStream analytical company identity bridging predecessor and successor entities.
+        data_tests:
+          - not_null
+      - name: current_ticker
+        description: Active market trading symbol associated with the company.
+        data_tests:
+          - not_null
+      - name: source_cik
+        description: Exact SEC CIK of the filing entity that reported the representative fact.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_company')
+                field: cik
+      - name: metric_key
+        description: Canonical financial metric identifier.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_financial_metric')
+                field: metric_key
+      - name: metric_name
+        description: Canonical display name for the financial metric.
+        data_tests:
+          - not_null
+      - name: period_type
+        description: Accounting period context (duration or instant) defined on dim_financial_metric.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['duration', 'instant']
+      - name: taxonomy
+        description: Source SEC XBRL taxonomy namespace (e.g. us-gaap).
+      - name: concept
+        description: Source SEC XBRL concept name.
+      - name: unit
+        description: Currency or unit of measurement of reported fact (e.g. USD).
+        data_tests:
+          - not_null
+      - name: fiscal_year
+        description: Fiscal year associated with the filing occurrence.
+      - name: start_date
+        description: Start date of the reporting period; populated for duration metrics, null for instant metrics.
+      - name: end_date
+        description: Point-in-time or period end date of the financial observation.
+        data_tests:
+          - not_null
+      - name: current_value
+        description: Representative reported financial metric value for the period.
+        data_tests:
+          - not_null
+      - name: previous_end_date
+        description: Period end date of the immediately preceding available annual observation.
+      - name: previous_value
+        description: Reported financial metric value of the immediately preceding available annual observation.
+      - name: absolute_change
+        description: Difference between current_value and previous_value across a valid consecutive annual interval (350-380 days).
+      - name: growth_rate
+        description: Year-over-year relative growth ((current_value - previous_value) / ABS(previous_value)) across a valid consecutive annual interval (350-380 days); null when previous_value is zero.
+      - name: form
+        description: SEC filing form of the representative fact (10-K or 10-K/A).
+        data_tests:
+          - not_null
+      - name: filed_date
+        description: SEC EDGAR filing date of the representative fact.
+        data_tests:
+          - not_null
+      - name: accession_number
+        description: SEC filing accession number of the representative fact.
+        data_tests:
+          - not_null

@@ -151,15 +151,6 @@ To support corporate continuity without arbitrary Slowly Changing Dimensions (SC
 
 #### V1 Conceptual Company Identity Crosswalk
 
-| company_key | current_ticker | source_cik | registrant_role | is_current_registrant | entity_name |
-| --- | --- | --- | --- | --- | --- |
-| AAPL | AAPL | 0000320193 | primary | TRUE | Apple Inc. |
-| MSFT | MSFT | 0000789019 | primary | TRUE | MICROSOFT CORPORATION |
-| NVDA | NVDA | 0001045810 | primary | TRUE | NVIDIA CORP |
-| AMZN | AMZN | 0001018724 | primary | TRUE | AMAZON COM INC |
-| XOM | XOM | 0002115436 | successor | TRUE | ExxonMobil Holdings Corporation |
-| XOM | XOM | 0000034088 | predecessor | FALSE | Exxon Mobil Corporation |
-| WMT | WMT | 0000104169 | primary | TRUE | WALMART INC. |
 | company_key | current_ticker | source_cik | registrant_role | is_current_registrant |
 | --- | --- | --- | --- | --- |
 | AAPL | AAPL | 0000320193 | primary | TRUE |
@@ -226,7 +217,7 @@ One row per analytical company (`company_key`) per canonical financial metric (`
 
 #### Identity Keys & Attributes
 - Primary Key: `company_key`, `metric_key`, `end_date`, `unit`
-- Attributes: `current_ticker`, `company_name`, `source_cik`, `metric_name`, `start_date`, `form`, `filed_date`, `accession_number`, `current_value`, `previous_end_date`, `previous_value`, `absolute_change`, `growth_rate`
+- Attributes: `current_ticker`, `source_cik`, `metric_name`, `period_type`, `taxonomy`, `concept`, `fiscal_year`, `start_date`, `current_value`, `previous_end_date`, `previous_value`, `absolute_change`, `growth_rate`, `form`, `filed_date`, `accession_number`
 
 #### Provenance & Fact Joining
 Financial facts join `source_cik` to the company identity mapping to associate each fact with its `company_key`. The mart retains the `source_cik` that produced the selected representative fact to preserve audit provenance across corporate predecessor/successor events.
@@ -249,7 +240,6 @@ The underlying `fact_financial_reported` table retains every reported fact occur
 - **Partitioning Rule:** Period sequencing and `LAG()` window calculations must partition by:
   `company_key, metric_key, unit`
   and order by `end_date ASC` (NOT partitioned by `source_cik`).
-- **Registrant Continuity Across Predecessor/Successor:** Partitioning by `company_key` ensures that when predecessor CIK data (e.g. legacy CIK `0000034088`) is eventually ingested upstream, historical predecessor periods and subsequent successor periods seamlessly form a single contiguous analytical series under `company_key = 'XOM'`.
 - **Registrant Continuity Across Predecessor/Successor:** Partitioning by `company_key` ensures that historical predecessor periods (legacy CIK `0000034088`) and subsequent successor periods (CIK `0002115436`) seamlessly form a single contiguous analytical series under `company_key = 'XOM'`.
 - **Fiscal Calendar Preservation:** Preserves each company's native fiscal calendar (e.g. Walmart's late-January end, Apple's late-September end, Microsoft's June end) rather than forcing dates into calendar quarters.
 - **Consecutive Annual Validation:** A comparison is considered a valid consecutive YoY interval only if `(end_date - previous_end_date)` is approximately one full year (`350` to `380` days). If a reporting gap indicates a missing year or non-annual span, `growth_rate` is not calculated as YoY and remains `NULL`.
@@ -263,10 +253,9 @@ The underlying `fact_financial_reported` table retains every reported fact occur
 
 #### Null & Edge-Case Rules
 - `previous_value`, `absolute_change`, and `growth_rate` are `NULL` for a company's earliest available annual observation.
-- If `previous_value = 0`, `growth_rate` evaluates to `NULL` to avoid division by zero.
-- If consecutive annual criteria (`350` to `380` days) are not satisfied, `growth_rate` evaluates to `NULL`.
-- **No Row Fabrication:** Companies without annual 10-K filings in the ingested dataset (such as Exxon Mobil in the current local baseline) naturally produce 0 rows in this annual mart until predecessor CIK data is ingested. No synthetic predecessor rows are manufactured.
-- **No Row Fabrication:** Ingested predecessor and successor SEC facts now form the available source foundation for `company_key = 'XOM'`, while `mart_company_financial_growth` itself remains not yet implemented. Analytical models rely strictly on available reported facts; no synthetic rows or interpolated metrics are manufactured.
+- `previous_value` reflects the immediately preceding representative reported value. Zero is a valid reported value; if `previous_value = 0`, `absolute_change` remains calculable (`current_value - 0`), while `growth_rate` evaluates to `NULL` to avoid division by zero.
+- Non-consecutive periods (where `end_date - previous_end_date` is outside `350` to `380` days) retain `previous_end_date` and `previous_value` for auditability, but `absolute_change` and `growth_rate` evaluate to `NULL`.
+- **No Row Fabrication:** Predecessor CIK `0000034088` and successor CIK `0002115436` are available under `company_key = 'XOM'` according to the identity contract. The mart uses only qualifying reported SEC annual facts actually present; no synthetic periods, interpolated values, or fabricated successor annual records are created.
 - Observations with differing units are never compared; all six canonical V1 metrics operate natively in `USD`.
 
 #### Important Exclusions

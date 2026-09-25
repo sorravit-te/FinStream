@@ -21,3 +21,10 @@ seeds:
       - name: metric_name
         description: Canonical display name defined consistently for metric_key.
         data_tests: [not_null]
+      - name: period_type
+        description: Accounting period context (duration or instant) for canonical metric.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['duration', 'instant']

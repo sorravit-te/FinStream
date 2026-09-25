@@ -60,3 +60,10 @@ models:
       - name: metric_name
         description: Canonical metric display name defined by the mapping contract.
         data_tests: [not_null]
+      - name: period_type
+        description: Accounting period type (duration or instant) for canonical metric.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['duration', 'instant']
