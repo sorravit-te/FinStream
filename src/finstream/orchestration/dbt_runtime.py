@@ -17,9 +17,12 @@ def run_dbt_seed(
     project_dir: str | Path | None = None,
     profiles_dir: str | Path | None = None,
 ) -> DbtRuntimeSummary:
-    """Run the FinStream dbt seed step through the installed dbt CLI."""
+    """Recreate the FinStream dbt seed relations through the installed dbt CLI."""
     return _run_dbt_command(
-        "seed", project_dir=project_dir, profiles_dir=profiles_dir
+        "seed",
+        additional_args=("--full-refresh",),
+        project_dir=project_dir,
+        profiles_dir=profiles_dir,
     )
 
 
@@ -29,7 +32,9 @@ def run_dbt_models(
     profiles_dir: str | Path | None = None,
 ) -> DbtRuntimeSummary:
     """Run the FinStream dbt models through the installed dbt CLI."""
-    return _run_dbt_command("run", project_dir=project_dir, profiles_dir=profiles_dir)
+    return _run_dbt_command(
+        "run", project_dir=project_dir, profiles_dir=profiles_dir
+    )
 
 
 def run_dbt_tests(
@@ -38,12 +43,15 @@ def run_dbt_tests(
     profiles_dir: str | Path | None = None,
 ) -> DbtRuntimeSummary:
     """Run the FinStream dbt analytical tests through the installed dbt CLI."""
-    return _run_dbt_command("test", project_dir=project_dir, profiles_dir=profiles_dir)
+    return _run_dbt_command(
+        "test", project_dir=project_dir, profiles_dir=profiles_dir
+    )
 
 
 def _run_dbt_command(
     command: str,
     *,
+    additional_args: tuple[str, ...] = (),
     project_dir: str | Path | None,
     profiles_dir: str | Path | None,
 ) -> DbtRuntimeSummary:
@@ -54,6 +62,7 @@ def _run_dbt_command(
         [
             dbt_executable,
             command,
+            *additional_args,
             "--project-dir",
             str(resolved_project_dir),
             "--profiles-dir",

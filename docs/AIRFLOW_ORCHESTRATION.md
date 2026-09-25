@@ -47,9 +47,16 @@ adapters do not race to run schema DDL independently.
 The Airflow-independent `finstream.orchestration` package also exposes the dbt
 stage boundaries:
 
-- `run_dbt_seed(*, project_dir=None, profiles_dir=None)` invokes `dbt seed`.
+- `run_dbt_seed(*, project_dir=None, profiles_dir=None)` invokes `dbt seed --full-refresh`.
 - `run_dbt_models(*, project_dir=None, profiles_dir=None)` invokes `dbt run`.
 - `run_dbt_tests(*, project_dir=None, profiles_dir=None)` invokes `dbt test`.
+
+FinStream's dbt seeds are small, authoritative version-controlled mappings, so
+their full refresh intentionally reproduces seed schema and content changes
+deterministically. It recreates only dbt seed relations; it does not reset
+Bronze or source data, dbt model history, PostgreSQL volumes, or the database
+as a whole. `dbt run` follows seed recreation and reconstructs dependent
+analytical models.
 
 They execute the existing dbt CLI through an argument list with no shell. By
 default, both `--project-dir` and `--profiles-dir` resolve to the repository's

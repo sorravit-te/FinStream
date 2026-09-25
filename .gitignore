@@ -1,3 +1,4 @@
+# Environment variables
 .env
 .env.docker
 
@@ -36,5 +37,6 @@ logs/
 /dbt/target/
 /dbt/dbt_packages/
 /dbt/logs/
+/dbt/.user.yml
 
 *.egg-info/

@@ -132,8 +132,6 @@ FinStream is implemented incrementally so each data layer and component is worki
 
 ### Step 9 — Incremental Processing and Idempotency
 
-**Status:** Complete.
-
 **Scope:**
 
 - Define incremental strategies and source-appropriate watermarks or retrieval boundaries.
@@ -148,8 +146,6 @@ FinStream is implemented incrementally so each data layer and component is worki
 
 ### Step 10 — Data Quality and Automated Testing
 
-**Status:** Complete.
-
 **Scope:**
 
 - Add Python tests for ingestion and validation behavior.
@@ -162,38 +158,6 @@ FinStream is implemented incrementally so each data layer and component is worki
 - Critical data-quality rules are enforced.
 
 ### Step 11 — Airflow Orchestration
-
-**Status:** Complete.
-
-**Completed locally:**
-
-- Step 11.1 establishes Apache Airflow as an optional, constraints-installed
-  development/runtime dependency, reserves a non-package DAG directory, and
-  defines orchestration, retry, and local WSL2 contracts.
-- Step 11.2 adds Airflow-independent Market, SEC, and FRED source runtime
-  adapters that compose the existing ingestion and PostgreSQL loading boundaries.
-- Step 11.3 adds the manually triggered `finstream_v1_pipeline` DAG, with one
-  visible source task per configured Market company, SEC company, and FRED
-  series. Source tasks share the Airflow DAG run's `run_after` value as `run_at`.
-- Step 11.4 adds Airflow-independent dbt seed and model runtime adapters, then
-  makes all source tasks direct prerequisites of `dbt_seed` and `dbt_seed` the
-  sole direct prerequisite of `dbt_run` in the manually triggered V1 DAG.
-- The current Airflow orchestration work corrects Bronze and PostgreSQL source
-  run identity so source entities sharing one DAG-run timestamp have distinct,
-  deterministic run IDs without changing `run_at`.
-- The current DAG performs one shared PostgreSQL source-schema readiness stage
-  before source-task fan-out, including a conditional legacy run-ID constraint
-  upgrade when required.
-- Step 11.5 adds sibling `dbt_test` and read-only `quality_monitoring` tasks
-  after `dbt_run`. dbt tests are blocking analytical gates; returned monitoring
-  signals remain structured non-blocking observations.
-- Step 11.6 adds fixed TaskFlow retry and failure settings: idempotent schema,
-  source, dbt seed/run, and monitoring runtime failures may retry; dbt tests
-  remain fail-fast. `schedule=None` is the explicit manually triggered V1
-  operating policy.
-- Step 11.7 validates the complete V1 pipeline locally through Airflow 3.3.2 in
-  dependency order. The Airflow DAG and each underlying FinStream component
-  remain independently testable.
 
 **Scope:**
 
@@ -208,8 +172,6 @@ FinStream is implemented incrementally so each data layer and component is worki
 - Individual components remain independently testable.
 
 ### Step 12 — Dockerized Local Environment
-
-**Status:** Complete.
 
 **Scope:**
 

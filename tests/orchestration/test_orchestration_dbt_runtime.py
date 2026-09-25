@@ -14,11 +14,11 @@ def _default_dbt_directory() -> Path:
 
 
 @pytest.mark.parametrize(
-    ("runtime_function", "command"),
+    ("runtime_function", "command", "additional_args"),
     [
-        (dbt_runtime.run_dbt_seed, "seed"),
-        (dbt_runtime.run_dbt_models, "run"),
-        (dbt_runtime.run_dbt_tests, "test"),
+        (dbt_runtime.run_dbt_seed, "seed", ["--full-refresh"]),
+        (dbt_runtime.run_dbt_models, "run", []),
+        (dbt_runtime.run_dbt_tests, "test", []),
     ],
 )
 def test_dbt_runtime_uses_repository_dbt_directory_without_cwd_dependency(
@@ -26,6 +26,7 @@ def test_dbt_runtime_uses_repository_dbt_directory_without_cwd_dependency(
     tmp_path: Path,
     runtime_function: object,
     command: str,
+    additional_args: list[str],
 ) -> None:
     runner = MagicMock(name="dbt_runner")
     monkeypatch.chdir(tmp_path)
@@ -39,6 +40,7 @@ def test_dbt_runtime_uses_repository_dbt_directory_without_cwd_dependency(
         [
             "environment-dbt",
             command,
+            *additional_args,
             "--project-dir",
             str(dbt_directory),
             "--profiles-dir",
