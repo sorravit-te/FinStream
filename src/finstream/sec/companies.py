@@ -19,3 +19,21 @@ INITIAL_SEC_COMPANIES: tuple[SecCompanyConfig, ...] = (
     SecCompanyConfig(ticker="XOM", cik="0002115436"),
     SecCompanyConfig(ticker="WMT", cik="0000104169"),
 )
+
+
+@dataclass(frozen=True)
+class HistoricalSecRegistrantConfig:
+    """Historical SEC registrant configuration for corporate continuity."""
+
+    company_key: str
+    cik: str
+    task_key: str
+
+
+HISTORICAL_SEC_REGISTRANTS: tuple[HistoricalSecRegistrantConfig, ...] = (
+    HistoricalSecRegistrantConfig(
+        company_key="XOM",
+        cik="0000034088",
+        task_key="sec_xom_predecessor",
+    ),
+)

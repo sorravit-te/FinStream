@@ -48,5 +48,4 @@ V1 does not include stock price prediction, investment recommendations, trade ex
 
 ## Success Criteria
 
-A successful V1 can ingest all three data domains, preserve raw source data, standardize heterogeneous records, and transform them into documented analytics-ready models. It validates important quality rules, supports incremental processing, reruns safely without duplicates, and exposes datasets suitable for downstream BI consumption.
 A successful V1 can ingest all three data domains, preserve raw source data, standardize heterogeneous records, and transform them into documented analytics-ready models. It validates important quality rules, supports incremental processing, reruns safely without duplicates, and exposes datasets suitable for downstream Power BI reporting/dashboard consumption and Streamlit interactive analytical consumption.

@@ -17,6 +17,10 @@ from finstream.orchestration import (
     run_quality_monitoring,
 )
 from finstream.sec.companies import INITIAL_SEC_COMPANIES
+from finstream.sec.companies import (
+    HISTORICAL_SEC_REGISTRANTS,
+    INITIAL_SEC_COMPANIES,
+)
 
 
 SOURCE_SCHEMA_RETRIES = 1
@@ -102,6 +106,11 @@ def finstream_v1_pipeline():
         )
         source_task_results.append(
             sec_source_task.override(task_id=f"sec_{company.ticker.lower()}")(company.cik)
+        )
+
+    for registrant in HISTORICAL_SEC_REGISTRANTS:
+        source_task_results.append(
+            sec_source_task.override(task_id=registrant.task_key)(registrant.cik)
         )
 
     for series_id in INITIAL_FRED_SERIES_IDS:

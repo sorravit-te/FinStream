@@ -9,6 +9,10 @@ import pytest
 
 from finstream.fred.series import INITIAL_FRED_SERIES_IDS
 from finstream.sec.companies import INITIAL_SEC_COMPANIES
+from finstream.sec.companies import (
+    HISTORICAL_SEC_REGISTRANTS,
+    INITIAL_SEC_COMPANIES,
+)
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -61,6 +65,7 @@ def _expected_task_ids() -> set[str]:
     return {
         *(f"market_{company.ticker.lower()}" for company in INITIAL_SEC_COMPANIES),
         *(f"sec_{company.ticker.lower()}" for company in INITIAL_SEC_COMPANIES),
+        *(registrant.task_key for registrant in HISTORICAL_SEC_REGISTRANTS),
         *(f"fred_{series_id.lower()}" for series_id in INITIAL_FRED_SERIES_IDS),
         "source_schema",
         "dbt_seed",
@@ -98,6 +103,7 @@ def test_dag_source_uses_the_approved_static_contract() -> None:
     assert "max_retry_delay" not in source
     assert source.count("dag_run.run_after") == 4
     assert "INITIAL_SEC_COMPANIES" in source
+    assert "HISTORICAL_SEC_REGISTRANTS" in source
     assert "INITIAL_FRED_SERIES_IDS" in source
     assert "run_market_source(symbol, run_at=dag_run.run_after)" in source
     assert "run_sec_source(cik, run_at=dag_run.run_after)" in source
@@ -203,12 +209,15 @@ def test_static_task_id_convention_covers_each_configured_entity() -> None:
     expected_task_ids = _expected_task_ids()
 
     assert len(_source_task_ids()) == (
-        2 * len(INITIAL_SEC_COMPANIES) + len(INITIAL_FRED_SERIES_IDS)
+        2 * len(INITIAL_SEC_COMPANIES)
+        + len(HISTORICAL_SEC_REGISTRANTS)
+        + len(INITIAL_FRED_SERIES_IDS)
     )
     assert len(expected_task_ids) == len(_source_task_ids()) + 5
-    assert len(expected_task_ids) == 22
+    assert len(expected_task_ids) == 23
     assert "task_id=f\"market_{company.ticker.lower()}\"" in source
     assert "task_id=f\"sec_{company.ticker.lower()}\"" in source
+    assert "task_id=registrant.task_key" in source
     assert "task_id=f\"fred_{series_id.lower()}\"" in source
 
 

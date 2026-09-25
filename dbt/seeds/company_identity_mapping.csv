@@ -1,0 +1,8 @@
+company_key,current_ticker,source_cik,registrant_role,is_current_registrant
+AAPL,AAPL,0000320193,primary,true
+MSFT,MSFT,0000789019,primary,true
+NVDA,NVDA,0001045810,primary,true
+AMZN,AMZN,0001018724,primary,true
+XOM,XOM,0002115436,successor,true
+XOM,XOM,0000034088,predecessor,false
+WMT,WMT,0000104169,primary,true

@@ -1,0 +1,69 @@
+version: 2
+
+models:
+  - name: mart_company_daily_performance
+    description: >-
+      Analytical mart providing daily company-level equity market performance,
+      price movement, and trading metrics for downstream reporting and interactive
+      exploration. Grain is one row per analytical company (company_key) and
+      market trading date (trading_date). Joins fact_market_daily strictly to the
+      current registrant mapping (is_current_registrant = true) so predecessor
+      registrants do not duplicate market sessions, while retaining active SEC CIK
+      as provenance.
+    columns:
+      - name: company_key
+        description: Stable FinStream analytical company identity across marts.
+        data_tests:
+          - not_null
+      - name: current_ticker
+        description: Active market trading symbol for the company.
+        data_tests:
+          - not_null
+      - name: current_cik
+        description: Active SEC CIK associated with the current trading company.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_company')
+                field: cik
+      - name: company_name
+        description: Representative legal company name from dim_company.
+        data_tests:
+          - not_null
+      - name: trading_date
+        description: Calendar date of the market trading session.
+        data_tests:
+          - not_null
+      - name: open
+        description: Opening price at market session start.
+        data_tests:
+          - not_null
+      - name: high
+        description: Highest traded price during the market session.
+        data_tests:
+          - not_null
+      - name: low
+        description: Lowest traded price during the market session.
+        data_tests:
+          - not_null
+      - name: close
+        description: Closing price at market session end.
+        data_tests:
+          - not_null
+      - name: volume
+        description: Trading volume during the session; nullable per upstream source contract.
+      - name: previous_close
+        description: >-
+          Closing price from the immediately preceding available market trading
+          session for the company. Evaluates to null on the earliest available
+          session.
+      - name: daily_change
+        description: >-
+          Absolute difference between current close and previous_close (close -
+          previous_close). Null on earliest session or if previous_close is null.
+      - name: daily_return
+        description: >-
+          Percentage price return relative to previous_close ((close /
+          previous_close) - 1.0). Null on earliest session, if previous_close is
+          null, or if previous_close is zero.

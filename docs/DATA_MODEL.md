@@ -116,13 +116,219 @@ Silver retains available source real-time metadata. This fact selects the latest
 
 ## Analytics Marts
 
-Potential initial logical outputs include:
+Analytics marts serve as the shared, upstream prepared analytical layer consumed by both Power BI and Streamlit. Neither downstream consumer should independently define metric calculations, company identity mappings, or cross-domain temporal alignments. All marts are designed to be consumer-independent, reproducible, and verifiable against underlying Gold models.
 
-- `mart_company_daily_performance`
-- `mart_company_financial_growth`
-- `mart_market_macro`
+### Company Identity & Predecessor/Successor Registrant Strategy
 
-These are planned models, not implemented models. Each mart must document its grain and calculation rules before implementation. Cross-domain marts must also define temporal alignment explicitly; monthly or quarterly macroeconomic observations must not be copied or joined to every daily market row without a documented rule such as as-of or period-based alignment.
+Market Gold (`fact_market_daily`) retains source trading symbols (`symbol`), while SEC Financial Gold (`fact_financial_reported`, `dim_company`) operates on canonical SEC Central Index Keys (`cik`).
+
+To bridge these domains cleanly across analytical marts, FinStream establishes `company_key` as the stable, durable analytical company identity. Ticker symbols can be reassigned, redomiciled, or vary across trading venues over time, and SEC CIKs change when corporate reorganizations occur; therefore, neither ticker nor CIK alone serves as the sole durable analytical identity across domains.
+
+#### Company Identity Mapping Contract
+The analytical company identity mapping contract conceptually contains:
+- `company_key`: The stable FinStream analytical company identity (e.g. `AAPL`, `MSFT`, `NVDA`, `AMZN`, `XOM`, `WMT`).
+- `current_ticker`: The active trading symbol used in market data feeds.
+- `source_cik`: The SEC Central Index Key associated with regulatory filings.
+- `registrant_role`: The functional corporate role of the CIK (`primary`, `successor`, or `predecessor`).
+- `is_current_registrant`: Boolean flag (`TRUE` for active trading/reporting registrants, `FALSE` for legacy/predecessor entities).
+
+**Cardinality & Provenance Rules:**
+- One `company_key` may map to more than one `source_cik`.
+- For V1 ordinary companies (`AAPL`, `MSFT`, `NVDA`, `AMZN`, `WMT`), each `company_key` currently maps to exactly one primary source CIK with `registrant_role = 'primary'` and `is_current_registrant = TRUE`.
+- For `XOM`, the entity has a current successor CIK relationship (`0002115436`, `registrant_role = 'successor'`, `is_current_registrant = TRUE`) and a predecessor CIK relationship (`0000034088`, `registrant_role = 'predecessor'`, `is_current_registrant = FALSE`).
+- `source_cik` must always remain available on mart facts for regulatory auditability and provenance.
+
+#### Predecessor and Successor Registrant Continuity (XOM Investigation)
+Profiling and SEC regulatory filings confirm that current ticker identity does not necessarily equal historical SEC registrant continuity:
+- On July 1, 2026, Exxon Mobil Corporation completed a corporate reorganization/redomiciliation.
+- **ExxonMobil Holdings Corporation** (CIK `0002115436`) became the new publicly traded parent and successor registrant, retaining ticker `XOM` on the NYSE without operational interruption.
+- All historical annual 10-K filings prior to July 2026 belong to the predecessor registrant **Exxon Mobil Corporation** (legacy CIK `0000034088`), while subsequent filings belong to successor CIK `0002115436`.
+
+To support corporate continuity without arbitrary Slowly Changing Dimensions (SCD):
+1. **Analytical Company Identity:** Downstream analytical models associate the stable analytical company identity (`company_key`) with one or more source CIKs, classifying them by role (`successor` vs. `predecessor`).
+2. **Provenance Preservation:** Source CIKs are retained on all facts to preserve reporting auditability and prevent accidental cross-company merging.
+3. **Predecessor Ingestion Continuity:** Predecessor CIK `0000034088` is ingested through standard SEC source boundaries to populate multi-year financial history for XOM, linking to `company_key = 'XOM'` without fabricating synthetic financial rows.
+
+#### V1 Conceptual Company Identity Crosswalk
+
+| company_key | current_ticker | source_cik | registrant_role | is_current_registrant | entity_name |
+| --- | --- | --- | --- | --- | --- |
+| AAPL | AAPL | 0000320193 | primary | TRUE | Apple Inc. |
+| MSFT | MSFT | 0000789019 | primary | TRUE | MICROSOFT CORPORATION |
+| NVDA | NVDA | 0001045810 | primary | TRUE | NVIDIA CORP |
+| AMZN | AMZN | 0001018724 | primary | TRUE | AMAZON COM INC |
+| XOM | XOM | 0002115436 | successor | TRUE | ExxonMobil Holdings Corporation |
+| XOM | XOM | 0000034088 | predecessor | FALSE | Exxon Mobil Corporation |
+| WMT | WMT | 0000104169 | primary | TRUE | WALMART INC. |
+| company_key | current_ticker | source_cik | registrant_role | is_current_registrant |
+| --- | --- | --- | --- | --- |
+| AAPL | AAPL | 0000320193 | primary | TRUE |
+| MSFT | MSFT | 0000789019 | primary | TRUE |
+| NVDA | NVDA | 0001045810 | primary | TRUE |
+| AMZN | AMZN | 0001018724 | primary | TRUE |
+| XOM | XOM | 0002115436 | successor | TRUE |
+| XOM | XOM | 0000034088 | predecessor | FALSE |
+| WMT | WMT | 0000104169 | primary | TRUE |
+
+---
+
+### `mart_company_daily_performance`
+
+#### Purpose
+Provides company-level daily market performance and trading metrics for downstream dashboards, charts, and exploration.
+
+#### Grain
+One row per analytical company (`company_key`) per market trading date (`trading_date`).
+
+#### Source Gold Models
+- `fact_market_daily`
+- `dim_company` (bridged via company identity mapping)
+
+#### Identity Keys & Attributes
+- Primary Key: `company_key`, `trading_date`
+- Attributes: `current_ticker`, `company_name`, `current_cik`, `trading_date`, `open`, `high`, `low`, `close`, `volume`, `previous_close`, `daily_change`, `daily_return`
+
+#### Market Data Join Rule
+Market data (`fact_market_daily`) joins only to the current ticker and current registrant mapping (`is_current_registrant = TRUE`). This ensures that predecessor CIKs (such as legacy XOM CIK `0000034088`) do not duplicate market performance rows. `current_cik` is retained on each row for regulatory provenance.
+
+#### Temporal Semantics
+- Evaluated strictly across available market trading dates.
+- Gaps for weekends and official exchange holidays are naturally preserved; no synthetic weekend or holiday observations are manufactured.
+
+#### Derived Metric Definitions
+- `previous_close`: Closing price of the immediately preceding available market trading observation for the same company (`company_key`), ordered by `trading_date`. This reflects the prior trading session (e.g. Friday close for a Monday session), not calendar day.
+- `daily_change`: `close - previous_close`
+- `daily_return`: `(close / previous_close) - 1` (equivalent to `(close - previous_close) / previous_close`)
+
+#### Null & Edge-Case Rules
+- `previous_close`, `daily_change`, and `daily_return` are `NULL` for the first available trading date of each company.
+- If `previous_close` is zero or null, `daily_return` evaluates to `NULL` to prevent division by zero.
+- Valid `NULL` volume values from the source are retained without alteration.
+
+#### Important Exclusions
+- Does not contain stock price predictions, forecasts, price targets, or trade execution recommendations.
+- Does not compute intraday or technical momentum indicators outside V1 requirements.
+
+---
+
+### `mart_company_financial_growth`
+
+#### Purpose
+Enables company-level multi-year financial performance, trend analysis, and year-over-year (YoY) growth tracking while preserving fiscal calendar boundaries and reporting provenance.
+
+#### Grain
+One row per analytical company (`company_key`) per canonical financial metric (`metric_key`) per annual reporting period (`end_date`) per unit (`unit`).
+
+#### Source Gold Models
+- `fact_financial_reported`
+- `dim_company` (bridged via company identity mapping)
+- `dim_financial_metric`
+
+#### Identity Keys & Attributes
+- Primary Key: `company_key`, `metric_key`, `end_date`, `unit`
+- Attributes: `current_ticker`, `company_name`, `source_cik`, `metric_name`, `start_date`, `form`, `filed_date`, `accession_number`, `current_value`, `previous_end_date`, `previous_value`, `absolute_change`, `growth_rate`
+
+#### Provenance & Fact Joining
+Financial facts join `source_cik` to the company identity mapping to associate each fact with its `company_key`. The mart retains the `source_cik` that produced the selected representative fact to preserve audit provenance across corporate predecessor/successor events.
+
+#### Period Selection & Deterministic Representative Fact Deduplication
+The underlying `fact_financial_reported` table retains every reported fact occurrence across SEC filings, including comparative prior-period disclosures, footnote occurrences, and amended filings. To construct a deterministic annual analytical series:
+1. **Annual Filing Filter:** Considers only annual SEC filing contexts (`form IN ('10-K', '10-K/A')` with `fiscal_period = 'FY'`).
+2. **Duration vs. Instant Distinction:**
+   - **Duration Metrics** (`contract_revenue_excluding_assessed_tax`, `net_income_attributable_to_parent`, `operating_cash_flow`): Require `start_date IS NOT NULL` with duration `(end_date - start_date)` spanning an annual interval (`350` to `380` days). Shorter-duration quarterly facts reported in 10-Ks are excluded.
+   - **Instant Metrics** (`equity_attributable_to_parent`, `total_assets`, `total_liabilities`): Require `start_date IS NULL`. The point-in-time balance sheet date is represented by `end_date`.
+3. **Representative Fact Selection at Analytical Grain:**
+   - Selection operates at the analytical company-period grain: `(company_key, metric_key, end_date, unit)`.
+   - If multiple filings report the same period (across comparative periods, amended filings, or predecessor/successor entities), the observation is ranked by:
+     `filed_date DESC, accession_number DESC`
+     to select the latest filed revision or amendment, while retaining the underlying `source_cik` and `accession_number` as provenance.
+   - Profiling of the current local V1 warehouse confirms **zero residual ties** under this ranking (every partition has a unique `(filed_date, accession_number)` pair).
+   - While `filed_date DESC, accession_number DESC` is empirically deterministic for current V1 data, future SEC expansions reporting multiple dimensional segments under a single concept in the same accession would require upstream disambiguation rather than arbitrary sorting.
+
+#### Period Sequencing & YoY LAG Partitioning
+- **Partitioning Rule:** Period sequencing and `LAG()` window calculations must partition by:
+  `company_key, metric_key, unit`
+  and order by `end_date ASC` (NOT partitioned by `source_cik`).
+- **Registrant Continuity Across Predecessor/Successor:** Partitioning by `company_key` ensures that when predecessor CIK data (e.g. legacy CIK `0000034088`) is eventually ingested upstream, historical predecessor periods and subsequent successor periods seamlessly form a single contiguous analytical series under `company_key = 'XOM'`.
+- **Registrant Continuity Across Predecessor/Successor:** Partitioning by `company_key` ensures that historical predecessor periods (legacy CIK `0000034088`) and subsequent successor periods (CIK `0002115436`) seamlessly form a single contiguous analytical series under `company_key = 'XOM'`.
+- **Fiscal Calendar Preservation:** Preserves each company's native fiscal calendar (e.g. Walmart's late-January end, Apple's late-September end, Microsoft's June end) rather than forcing dates into calendar quarters.
+- **Consecutive Annual Validation:** A comparison is considered a valid consecutive YoY interval only if `(end_date - previous_end_date)` is approximately one full year (`350` to `380` days). If a reporting gap indicates a missing year or non-annual span, `growth_rate` is not calculated as YoY and remains `NULL`.
+
+#### Derived Metric Definitions
+- `current_value`: Representative reported value for the fiscal year.
+- `previous_value`: Representative reported value for the preceding comparable fiscal year.
+- `absolute_change`: `current_value - previous_value`
+- `growth_rate`: `(current_value - previous_value) / ABS(previous_value)`
+  - Denominator uses `ABS(previous_value)` to maintain correct growth direction when transitioning from negative values (e.g. net losses).
+
+#### Null & Edge-Case Rules
+- `previous_value`, `absolute_change`, and `growth_rate` are `NULL` for a company's earliest available annual observation.
+- If `previous_value = 0`, `growth_rate` evaluates to `NULL` to avoid division by zero.
+- If consecutive annual criteria (`350` to `380` days) are not satisfied, `growth_rate` evaluates to `NULL`.
+- **No Row Fabrication:** Companies without annual 10-K filings in the ingested dataset (such as Exxon Mobil in the current local baseline) naturally produce 0 rows in this annual mart until predecessor CIK data is ingested. No synthetic predecessor rows are manufactured.
+- **No Row Fabrication:** Ingested predecessor and successor SEC facts now form the available source foundation for `company_key = 'XOM'`, while `mart_company_financial_growth` itself remains not yet implemented. Analytical models rely strictly on available reported facts; no synthetic rows or interpolated metrics are manufactured.
+- Observations with differing units are never compared; all six canonical V1 metrics operate natively in `USD`.
+
+#### Important Exclusions
+- Does not perform currency normalization, cross-currency conversions, or unit conversions.
+- Does not interpolate missing annual periods or manufacture non-reported numbers.
+
+---
+
+### `mart_market_macro`
+
+#### Purpose
+Provides cross-domain analytical alignment combining daily market performance with mixed-frequency macroeconomic indicators for retrospective descriptive analysis, visualization, and macroeconomic regime correlation.
+
+#### Grain
+One row per analytical company (`company_key`) per market trading date (`trading_date`) per macroeconomic series (`series_id`).
+
+#### Long-Form Design Rationale
+A normalized long-form structure (`company_key + trading_date + series_id`) is selected over wide columns because it:
+- Preserves discrete series identity and units without schema alteration.
+- Accommodates mixed source observation frequencies (daily, monthly, quarterly).
+- Enables flexible slicing, filtering, and cross-series visualization in Power BI and Streamlit.
+- Remains extensible for future macroeconomic series additions.
+
+#### Source Gold Models
+- `fact_market_daily`
+- `fact_macro_observation`
+- `dim_company` (bridged via company identity mapping)
+- `dim_macro_series`
+
+#### Identity Keys & Attributes
+- Primary Key: `company_key`, `trading_date`, `series_id`
+- Attributes: `current_ticker`, `company_name`, `current_cik`, `trading_date`, `market_close`, `market_volume`, `series_id`, `macro_observation_date`, `macro_value`, `macro_age_days`
+
+#### Market Join & Provenance Rule
+Market data joins on `(company_key, trading_date)` using only the current registrant mapping (`is_current_registrant = TRUE`) to avoid duplicate rows from predecessor CIKs. The active regulatory identifier (`current_cik`) and `current_ticker` are retained on every row for traceability and provenance.
+
+#### Retrospective Observation-Date Alignment Contract
+FinStream V1 retrieves standard FRED series observations representing current-vintage values. The temporal alignment rule:
+- For each company trading date and series, selects the latest current-canonical macro observation satisfying:
+  `macro_observation_date <= trading_date`
+- **Semantics of the Rule:** This rule ensures only that the macroeconomic reference period (e.g. month of August or Q1 2026) does not occur after the market trading session. It provides consistent temporal co-location of economic reference periods against market sessions.
+- **Current-Vintage & Publication Limitation:** Standard FRED observation dates are economic reference dates, not publication or release dates. Because standard FRED data reflects current-vintage numbers (incorporating subsequent historical revisions) and lacks historical release timestamps, this alignment:
+  - Does **NOT** establish that the value was publicly available or known to market participants on `trading_date`.
+  - Does **NOT** eliminate look-ahead bias from historical revisions or release lags.
+  - Is **NOT** suitable for point-in-time strategy backtesting or historical information-set simulation.
+  - If true point-in-time, no-lookahead analytics are required in a future phase, they require an explicit vintage/release-aware data source (e.g. ALFRED) rather than the current standard FRED pipeline.
+
+#### Reference-Date Age
+Because monthly and quarterly indicators update less frequently than market trading days, the latest available macro observation is aligned across subsequent trading dates until the next period is observed. To maintain transparency:
+- `macro_age_days = trading_date - macro_observation_date`
+- `macro_age_days` defines the **reference-date age** (the elapsed calendar days between the market trading session and the beginning of the macroeconomic reference period).
+- It is explicitly not defined as publication lag, release lag, or availability lag.
+
+#### Null & Edge-Case Rules
+- Legitimate source missing values (such as holiday `NULL` values in `DGS10`) are preserved without synthetic imputation.
+- If no macro observation exists on or prior to a trading date for a given series, `macro_value` and `macro_age_days` evaluate to `NULL`.
+
+#### Important Exclusions
+- Does not interpolate, backfill, or impute macro values between sparse publication dates.
+- Does not manufacture synthetic daily records for monthly or quarterly series.
+- Does not generate predictive or macroeconomic forecasts.
+- Does not claim point-in-time informational availability or zero-lookahead backtest validity.
 
 ## Keys and Identity
 

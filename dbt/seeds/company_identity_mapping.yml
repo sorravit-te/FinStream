@@ -1,0 +1,42 @@
+version: 2
+
+seeds:
+  - name: company_identity_mapping
+    description: >-
+      Approved FinStream V1 company identity crosswalk bridging market trading
+      symbols with SEC Central Index Keys (CIKs). Each row represents an
+      approved company-to-source-CIK relationship. company_key serves as the
+      durable analytical identity across downstream marts, while current_ticker
+      represents the current market symbol and source_cik preserves SEC
+      regulatory provenance. registrant_role distinguishes primary, successor,
+      and predecessor relationships. XOM intentionally contains two rows to
+      represent both its current successor registrant (post-July 2026) and its
+      historical predecessor registrant without conflating market feeds.
+    config:
+      column_types:
+        source_cik: varchar(10)
+    columns:
+      - name: company_key
+        description: Durable FinStream analytical company identity across marts.
+        data_tests:
+          - not_null
+      - name: current_ticker
+        description: Active market trading symbol for the company.
+        data_tests:
+          - not_null
+      - name: source_cik
+        description: Ten-digit zero-padded SEC Central Index Key preserving filing provenance.
+        data_tests:
+          - not_null
+          - unique
+      - name: registrant_role
+        description: Corporate registrant role (primary, successor, predecessor).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['primary', 'successor', 'predecessor']
+      - name: is_current_registrant
+        description: True for active trading and reporting registrants; false for historical predecessor entities.
+        data_tests:
+          - not_null
