@@ -156,3 +156,68 @@ models:
         description: SEC filing accession number of the representative fact.
         data_tests:
           - not_null
+
+  - name: mart_market_macro
+    description: >-
+      Retrospective current-vintage analytical mart aligning each company market
+      trading session with every configured macro series. Grain is one row per
+      company_key, trading_date, and series_id. For each grid row, the mart uses
+      the latest current-canonical macro observation whose reference date is on
+      or before the trading date, even when that observation's value is null.
+      This reference-date alignment does not establish historical publication
+      availability and is not suitable for point-in-time or no-lookahead
+      backtesting; those uses require a future vintage/release-aware source such
+      as ALFRED.
+    columns:
+      - name: company_key
+        description: Stable FinStream analytical company identity inherited from the daily performance mart.
+        data_tests:
+          - not_null
+      - name: current_ticker
+        description: Active market trading symbol associated with the company.
+        data_tests:
+          - not_null
+      - name: current_cik
+        description: Active SEC CIK retained for regulatory provenance.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_company')
+                field: cik
+      - name: company_name
+        description: Representative legal company name inherited from the daily performance mart.
+      - name: trading_date
+        description: Calendar date of the market trading session.
+        data_tests:
+          - not_null
+      - name: series_id
+        description: FRED macroeconomic series identifier included from the configured series dimension.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_macro_series')
+                field: series_id
+      - name: market_close
+        description: Closing market price from mart_company_daily_performance at retained precision.
+        data_tests:
+          - not_null
+      - name: market_volume
+        description: Trading volume from mart_company_daily_performance; nullable per the upstream source contract.
+      - name: macro_observation_date
+        description: >-
+          Latest current-canonical macro reference date on or before trading_date,
+          independent of whether macro_value is null; null when no eligible
+          observation exists.
+      - name: macro_value
+        description: >-
+          Current-canonical source value at macro_observation_date, preserved at
+          source precision and including legitimate nulls; null when no eligible
+          observation exists.
+      - name: macro_age_days
+        description: >-
+          Non-negative reference-date age calculated as trading_date minus
+          macro_observation_date in calendar days. It is not a publication,
+          release, or availability lag and is null when no eligible observation
+          exists.

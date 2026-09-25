@@ -279,10 +279,9 @@ A normalized long-form structure (`company_key + trading_date + series_id`) is s
 - Enables flexible slicing, filtering, and cross-series visualization in Power BI and Streamlit.
 - Remains extensible for future macroeconomic series additions.
 
-#### Source Gold Models
-- `fact_market_daily`
+#### Source Models
+- `mart_company_daily_performance`
 - `fact_macro_observation`
-- `dim_company` (bridged via company identity mapping)
 - `dim_macro_series`
 
 #### Identity Keys & Attributes
@@ -290,12 +289,13 @@ A normalized long-form structure (`company_key + trading_date + series_id`) is s
 - Attributes: `current_ticker`, `company_name`, `current_cik`, `trading_date`, `market_close`, `market_volume`, `series_id`, `macro_observation_date`, `macro_value`, `macro_age_days`
 
 #### Market Join & Provenance Rule
-Market data joins on `(company_key, trading_date)` using only the current registrant mapping (`is_current_registrant = TRUE`) to avoid duplicate rows from predecessor CIKs. The active regulatory identifier (`current_cik`) and `current_ticker` are retained on every row for traceability and provenance.
+The market grain and identity are inherited from `mart_company_daily_performance`, which uses only the current registrant mapping (`is_current_registrant = TRUE`) to avoid duplicate rows from predecessor CIKs. The active regulatory identifier (`current_cik`) and `current_ticker` are retained on every row for traceability and provenance.
 
 #### Retrospective Observation-Date Alignment Contract
 FinStream V1 retrieves standard FRED series observations representing current-vintage values. The temporal alignment rule:
 - For each company trading date and series, selects the latest current-canonical macro observation satisfying:
   `macro_observation_date <= trading_date`
+- Selection is based on observation date independently of value nullability. A latest eligible observation with a legitimate source `NULL` remains selected; the alignment does not search farther back for a non-null value.
 - **Semantics of the Rule:** This rule ensures only that the macroeconomic reference period (e.g. month of August or Q1 2026) does not occur after the market trading session. It provides consistent temporal co-location of economic reference periods against market sessions.
 - **Current-Vintage & Publication Limitation:** Standard FRED observation dates are economic reference dates, not publication or release dates. Because standard FRED data reflects current-vintage numbers (incorporating subsequent historical revisions) and lacks historical release timestamps, this alignment:
   - Does **NOT** establish that the value was publicly available or known to market participants on `trading_date`.
@@ -311,10 +311,10 @@ Because monthly and quarterly indicators update less frequently than market trad
 
 #### Null & Edge-Case Rules
 - Legitimate source missing values (such as holiday `NULL` values in `DGS10`) are preserved without synthetic imputation.
-- If no macro observation exists on or prior to a trading date for a given series, `macro_value` and `macro_age_days` evaluate to `NULL`.
+- If no macro observation exists on or prior to a trading date for a given series, `macro_observation_date`, `macro_value`, and `macro_age_days` all evaluate to `NULL`.
 
 #### Important Exclusions
-- Does not interpolate, backfill, or impute macro values between sparse publication dates.
+- Does not interpolate, alter, or impute macro observations. Each trading-date row references the latest eligible source observation by reference date; repeated use of that observation across later trading dates is as-of reference-date alignment, not publication-time or value imputation.
 - Does not manufacture synthetic daily records for monthly or quarterly series.
 - Does not generate predictive or macroeconomic forecasts.
 - Does not claim point-in-time informational availability or zero-lookahead backtest validity.
