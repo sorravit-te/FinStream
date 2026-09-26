@@ -1,0 +1,138 @@
+table 'analytics mart_company_daily_performance'
+	lineageTag: 7882eafd-c412-4b8f-b06a-65ed3708e5cd
+
+	column company_key
+		dataType: string
+		lineageTag: 370af20c-364b-43d9-bb63-f2a165ca020f
+		summarizeBy: none
+		sourceColumn: company_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column current_ticker
+		dataType: string
+		lineageTag: 08d0a2a7-f4bc-4efa-91cb-d29f6a206f77
+		summarizeBy: none
+		sourceColumn: current_ticker
+
+		annotation SummarizationSetBy = Automatic
+
+	column current_cik
+		dataType: string
+		lineageTag: e0766775-4e61-41e0-a179-766d82520786
+		summarizeBy: none
+		sourceColumn: current_cik
+
+		annotation SummarizationSetBy = Automatic
+
+	column company_name
+		dataType: string
+		lineageTag: 9fdd5399-0811-4a04-b38b-4c666c5695a0
+		summarizeBy: none
+		sourceColumn: company_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column trading_date
+		dataType: dateTime
+		formatString: Long Date
+		lineageTag: 30d61819-1ccc-4d92-bed0-55d386fa1427
+		summarizeBy: none
+		sourceColumn: trading_date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation UnderlyingDateTimeDataType = Date
+
+	column open
+		dataType: double
+		lineageTag: 96d9b0b9-7751-486a-af69-098dc6bc1521
+		summarizeBy: sum
+		sourceColumn: open
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column high
+		dataType: double
+		lineageTag: c7e19d13-c594-43fc-acc1-6da429867e7c
+		summarizeBy: sum
+		sourceColumn: high
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column low
+		dataType: double
+		lineageTag: da34f005-7be2-49d9-96e0-e851e38523ac
+		summarizeBy: sum
+		sourceColumn: low
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column close
+		dataType: double
+		lineageTag: 255d227a-b82c-4156-8481-8c3a13a3423e
+		summarizeBy: sum
+		sourceColumn: close
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column volume
+		dataType: int64
+		formatString: 0
+		lineageTag: b8d0e117-beb0-48f1-9bab-71d44ad32a8f
+		summarizeBy: sum
+		sourceColumn: volume
+
+		annotation SummarizationSetBy = Automatic
+
+	column previous_close
+		dataType: double
+		lineageTag: 79a1ffab-52bf-4946-ae9f-e263dbe28873
+		summarizeBy: sum
+		sourceColumn: previous_close
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column daily_change
+		dataType: double
+		lineageTag: 7e104638-edf2-469f-b85f-06b6dca1842d
+		summarizeBy: sum
+		sourceColumn: daily_change
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column daily_return
+		dataType: double
+		lineageTag: 6b7ea15d-e14d-4954-9043-79900f06bc9e
+		summarizeBy: sum
+		sourceColumn: daily_return
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition 'analytics mart_company_daily_performance' = m
+		mode: import
+		source =
+				let
+				  Source = PostgreSQL.Database("localhost:5433", "finstream"),
+				  #"Navigation 1" = Source{[Schema = "analytics", Item = "mart_company_daily_performance"]}[Data]
+				in
+				  #"Navigation 1"
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

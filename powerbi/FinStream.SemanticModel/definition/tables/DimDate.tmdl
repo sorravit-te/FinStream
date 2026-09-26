@@ -1,0 +1,175 @@
+table DimDate
+	lineageTag: c61eda00-ece5-4bf2-b8a2-97905e25275d
+	dataCategory: Time
+
+	column Date
+		isKey
+		formatString: General Date
+		lineageTag: 4f049d34-f690-4c1f-87bd-bdd839c1f83d
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [Date]
+
+		annotation SummarizationSetBy = Automatic
+
+	column CalendarYear
+		formatString: 0
+		lineageTag: b3483570-effe-4a56-b2d6-4c3520e6d40e
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [CalendarYear]
+
+		annotation SummarizationSetBy = Automatic
+
+	column YearMonth
+		lineageTag: 9c023885-951f-4498-8869-e391d342f66c
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [YearMonth]
+		sortByColumn: YearMonthSort
+
+		annotation SummarizationSetBy = Automatic
+
+	column YearMonthSort
+		formatString: 0
+		lineageTag: bcbbee19-e4a0-40db-8119-551ad8e5f4c7
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [YearMonthSort]
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthNumber
+		formatString: 0
+		lineageTag: 2d09ed2f-310a-4b85-a948-d839003e7fe5
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [MonthNumber]
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthName
+		lineageTag: d6a29409-bc01-46b2-a4c1-f8c92030996d
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [MonthName]
+		sortByColumn: MonthNumber
+
+		annotation SummarizationSetBy = Automatic
+
+	column QuarterNumber
+		formatString: 0
+		lineageTag: bd25d80c-cc92-4489-b65b-ae5be0606fe8
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [QuarterNumber]
+
+		annotation SummarizationSetBy = Automatic
+
+	column YearQuarter
+		lineageTag: 50f7eef7-c927-4075-96ce-24baa4209b6c
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [YearQuarter]
+		sortByColumn: YearQuarterSort
+
+		annotation SummarizationSetBy = Automatic
+
+	column YearQuarterSort
+		formatString: 0
+		lineageTag: 457e360a-cced-4756-a5bb-c64e33482868
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [YearQuarterSort]
+
+		annotation SummarizationSetBy = Automatic
+
+	column WeekdayNumber
+		formatString: 0
+		lineageTag: 4dba9548-c655-4add-87e7-a70aab62afcd
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [WeekdayNumber]
+
+		annotation SummarizationSetBy = Automatic
+
+	column WeekdayName
+		lineageTag: 3a23f4e0-dc22-4e7e-bee6-5941bcfc4b2f
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [WeekdayName]
+		sortByColumn: WeekdayNumber
+
+		annotation SummarizationSetBy = Automatic
+
+	partition DimDate = calculated
+		mode: import
+		source =
+				
+				VAR AllDates =
+				    FILTER(
+				        UNION(
+				            SELECTCOLUMNS(
+				                'analytics mart_company_daily_performance',
+				                "DateValue",
+				                'analytics mart_company_daily_performance'[trading_date]
+				            ),
+				            SELECTCOLUMNS(
+				                'analytics mart_company_financial_growth',
+				                "DateValue",
+				                'analytics mart_company_financial_growth'[start_date]
+				            ),
+				            SELECTCOLUMNS(
+				                'analytics mart_company_financial_growth',
+				                "DateValue",
+				                'analytics mart_company_financial_growth'[end_date]
+				            ),
+				            SELECTCOLUMNS(
+				                'analytics mart_company_financial_growth',
+				                "DateValue",
+				                'analytics mart_company_financial_growth'[previous_end_date]
+				            ),
+				            SELECTCOLUMNS(
+				                'analytics mart_company_financial_growth',
+				                "DateValue",
+				                'analytics mart_company_financial_growth'[filed_date]
+				            ),
+				            SELECTCOLUMNS(
+				                'analytics mart_market_macro',
+				                "DateValue",
+				                'analytics mart_market_macro'[trading_date]
+				            ),
+				            SELECTCOLUMNS(
+				                'analytics mart_market_macro',
+				                "DateValue",
+				                'analytics mart_market_macro'[macro_observation_date]
+				            )
+				        ),
+				        NOT ISBLANK([DateValue])
+				    )
+				
+				VAR MinDate =
+				    MINX(AllDates, [DateValue])
+				
+				VAR MaxDate =
+				    MAXX(AllDates, [DateValue])
+				
+				RETURN
+				    ADDCOLUMNS(
+				        CALENDAR(MinDate, MaxDate),
+				        "CalendarYear", YEAR([Date]),
+				        "YearMonth", FORMAT([Date], "yyyy-MM"),
+				        "YearMonthSort", YEAR([Date]) * 100 + MONTH([Date]),
+				        "MonthNumber", MONTH([Date]),
+				        "MonthName", FORMAT([Date], "MMM"),
+				        "QuarterNumber", QUARTER([Date]),
+				        "YearQuarter",
+				            FORMAT([Date], "yyyy") & "-Q" & QUARTER([Date]),
+				        "YearQuarterSort",
+				            YEAR([Date]) * 10 + QUARTER([Date]),
+				        "WeekdayNumber", WEEKDAY([Date], 2),
+				        "WeekdayName", FORMAT([Date], "ddd")
+				    )
+
+	annotation PBI_Id = 2764d6b099754342aad4caaf02c71fd3
+

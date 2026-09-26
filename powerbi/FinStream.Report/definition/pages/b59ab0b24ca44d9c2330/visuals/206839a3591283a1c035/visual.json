@@ -1,0 +1,90 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "206839a3591283a1c035",
+  "position": {
+    "x": 1132.1065318316241,
+    "y": 473.89737171464333,
+    "z": 7000,
+    "height": 242.10262828535664,
+    "width": 715.49344375431326,
+    "tabOrder": 6000
+  },
+  "visual": {
+    "visualType": "clusteredColumnChart",
+    "query": {
+      "queryState": {
+        "Category": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_market_macro"
+                    }
+                  },
+                  "Property": "macro_observation_date"
+                }
+              },
+              "queryRef": "analytics mart_market_macro.macro_observation_date",
+              "nativeQueryRef": "macro_observation_date",
+              "active": true
+            }
+          ]
+        },
+        "Y": {
+          "projections": [
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Market Macro Trading Days"
+                }
+              },
+              "queryRef": "_Measures.Market Macro Trading Days",
+              "nativeQueryRef": "Market Macro Trading Days"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Column": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "analytics mart_market_macro"
+                  }
+                },
+                "Property": "macro_observation_date"
+              }
+            },
+            "direction": "Ascending"
+          }
+        ],
+        "isDefaultSort": true
+      }
+    },
+    "visualContainerObjects": {
+      "title": [
+        {
+          "properties": {
+            "text": {
+              "expr": {
+                "Literal": {
+                  "Value": "'Aligned Reference-Date Observation Trend'"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

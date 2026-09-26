@@ -1,0 +1,100 @@
+{
+  "version": "1.1.0",
+  "diagrams": [
+    {
+      "ordinal": 0,
+      "scrollPosition": {
+        "x": 164.74698192324351,
+        "y": 0
+      },
+      "nodes": [
+        {
+          "location": {
+            "x": 87.378655128811459,
+            "y": 2.81866629447779
+          },
+          "nodeIndex": "analytics mart_company_daily_performance",
+          "nodeLineageTag": "7882eafd-c412-4b8f-b06a-65ed3708e5cd",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 1
+        },
+        {
+          "location": {
+            "x": 374.95888344404682,
+            "y": 0
+          },
+          "nodeIndex": "analytics mart_company_financial_growth",
+          "nodeLineageTag": "962b05f0-394e-4f16-ba42-d04788302484",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 2
+        },
+        {
+          "location": {
+            "x": 1072.9873423582408,
+            "y": 0
+          },
+          "nodeIndex": "analytics mart_market_macro",
+          "nodeLineageTag": "a9afc97a-3b59-4b2a-bc8a-fa1f8a19976f",
+          "size": {
+            "height": 300,
+            "width": 234
+          },
+          "zIndex": 5
+        },
+        {
+          "location": {
+            "x": 706.76519008534581,
+            "y": 275.94744259458793
+          },
+          "nodeIndex": "DimCompany",
+          "nodeLineageTag": "98ffd225-92f8-4c6b-942c-89c9e518a368",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 3
+        },
+        {
+          "location": {
+            "x": 1071.0936322072596,
+            "y": 466.20738790285259
+          },
+          "nodeIndex": "DimDate",
+          "nodeLineageTag": "c61eda00-ece5-4bf2-b8a2-97905e25275d",
+          "size": {
+            "height": 200,
+            "width": 234
+          },
+          "zIndex": 4
+        },
+        {
+          "location": {
+            "x": 1449.9756982227952,
+            "y": 0
+          },
+          "nodeIndex": "_Measures",
+          "nodeLineageTag": "ddff45d7-af0c-4177-afb6-ede944928621",
+          "size": {
+            "height": 417.46847775455007,
+            "width": 234
+          },
+          "zIndex": 6
+        }
+      ],
+      "name": "All tables",
+      "zoomValue": 67.983035981916444,
+      "pinKeyFieldsToTop": false,
+      "showExtraHeaderInfo": false,
+      "hideKeyFieldsWhenCollapsed": false,
+      "tablesLocked": false
+    }
+  ],
+  "selectedDiagram": "All tables",
+  "defaultDiagram": "All tables"
+}

@@ -1,0 +1,7 @@
+EVALUATE
+ROW(
+    "Rows", COUNTROWS(DimDate),
+    "Min Date", MIN(DimDate[Date]),
+    "Max Date", MAX(DimDate[Date]),
+    "Distinct Dates", DISTINCTCOUNT(DimDate[Date])
+)

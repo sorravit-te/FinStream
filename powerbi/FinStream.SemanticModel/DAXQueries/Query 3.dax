@@ -1,0 +1,6 @@
+EVALUATE
+ROW(
+    "Daily Performance", COUNTROWS('analytics mart_company_daily_performance'),
+    "Financial Growth", COUNTROWS('analytics mart_company_financial_growth'),
+    "Market Macro", COUNTROWS('analytics mart_market_macro')
+)

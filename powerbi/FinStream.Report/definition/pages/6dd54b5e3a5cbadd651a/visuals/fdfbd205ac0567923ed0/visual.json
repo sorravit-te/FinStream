@@ -1,0 +1,195 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "fdfbd205ac0567923ed0",
+  "position": {
+    "x": 366,
+    "y": 764,
+    "z": 2000,
+    "height": 262,
+    "width": 1450,
+    "tabOrder": 3000
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_financial_growth"
+                    }
+                  },
+                  "Property": "current_ticker"
+                }
+              },
+              "queryRef": "analytics mart_company_financial_growth.current_ticker",
+              "nativeQueryRef": "current_ticker"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_financial_growth"
+                    }
+                  },
+                  "Property": "MetricShortName"
+                }
+              },
+              "queryRef": "analytics mart_company_financial_growth.MetricShortName",
+              "nativeQueryRef": "MetricShortName"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_financial_growth"
+                    }
+                  },
+                  "Property": "unit"
+                }
+              },
+              "queryRef": "analytics mart_company_financial_growth.unit",
+              "nativeQueryRef": "unit"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_financial_growth"
+                    }
+                  },
+                  "Property": "end_date"
+                }
+              },
+              "queryRef": "analytics mart_company_financial_growth.end_date",
+              "nativeQueryRef": "end_date"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_financial_growth"
+                    }
+                  },
+                  "Property": "current_value"
+                }
+              },
+              "queryRef": "Sum(analytics mart_company_financial_growth.current_value)",
+              "nativeQueryRef": "current_value"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_financial_growth"
+                    }
+                  },
+                  "Property": "previous_value"
+                }
+              },
+              "queryRef": "Sum(analytics mart_company_financial_growth.previous_value)",
+              "nativeQueryRef": "previous_value"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_financial_growth"
+                    }
+                  },
+                  "Property": "absolute_change"
+                }
+              },
+              "queryRef": "Sum(analytics mart_company_financial_growth.absolute_change)",
+              "nativeQueryRef": "absolute_change"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_financial_growth"
+                    }
+                  },
+                  "Property": "growth_rate"
+                }
+              },
+              "queryRef": "Sum(analytics mart_company_financial_growth.growth_rate)",
+              "nativeQueryRef": "growth_rate"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_financial_growth"
+                    }
+                  },
+                  "Property": "filed_date"
+                }
+              },
+              "queryRef": "analytics mart_company_financial_growth.filed_date",
+              "nativeQueryRef": "filed_date"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_financial_growth"
+                    }
+                  },
+                  "Property": "form"
+                }
+              },
+              "queryRef": "analytics mart_company_financial_growth.form",
+              "nativeQueryRef": "form"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_financial_growth"
+                    }
+                  },
+                  "Property": "accession_number"
+                }
+              },
+              "queryRef": "analytics mart_company_financial_growth.accession_number",
+              "nativeQueryRef": "accession_number"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Column": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "analytics mart_company_financial_growth"
+                  }
+                },
+                "Property": "end_date"
+              }
+            },
+            "direction": "Descending"
+          }
+        ]
+      }
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

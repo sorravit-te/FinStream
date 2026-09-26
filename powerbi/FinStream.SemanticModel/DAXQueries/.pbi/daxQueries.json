@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "tabOrder": [
+    "Query 1",
+    "DimCompany",
+    "DimDate",
+    "Query 2",
+    "Query 3"
+  ],
+  "defaultTab": "Query 3"
+}

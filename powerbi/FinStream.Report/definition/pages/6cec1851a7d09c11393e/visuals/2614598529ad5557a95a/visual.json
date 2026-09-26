@@ -1,0 +1,168 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "2614598529ad5557a95a",
+  "position": {
+    "x": 1013.9779681762546,
+    "y": 226.37083721411886,
+    "z": 8000,
+    "height": 235.46725918451727,
+    "width": 798.02203182374546,
+    "tabOrder": 8000
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DimDate"
+                    }
+                  },
+                  "Property": "Date"
+                }
+              },
+              "queryRef": "DimDate.Date",
+              "nativeQueryRef": "Date"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "DimCompany"
+                    }
+                  },
+                  "Property": "CurrentTicker"
+                }
+              },
+              "queryRef": "DimCompany.CurrentTicker",
+              "nativeQueryRef": "CurrentTicker"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_daily_performance"
+                    }
+                  },
+                  "Property": "open"
+                }
+              },
+              "queryRef": "Sum(analytics mart_company_daily_performance.open)",
+              "nativeQueryRef": "open"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_daily_performance"
+                    }
+                  },
+                  "Property": "high"
+                }
+              },
+              "queryRef": "Sum(analytics mart_company_daily_performance.high)",
+              "nativeQueryRef": "high"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_daily_performance"
+                    }
+                  },
+                  "Property": "low"
+                }
+              },
+              "queryRef": "Sum(analytics mart_company_daily_performance.low)",
+              "nativeQueryRef": "low"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_daily_performance"
+                    }
+                  },
+                  "Property": "close"
+                }
+              },
+              "queryRef": "Sum(analytics mart_company_daily_performance.close)",
+              "nativeQueryRef": "close"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_company_daily_performance"
+                    }
+                  },
+                  "Property": "volume"
+                }
+              },
+              "queryRef": "Sum(analytics mart_company_daily_performance.volume)",
+              "nativeQueryRef": "volume"
+            },
+            {
+              "field": {
+                "Measure": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "_Measures"
+                    }
+                  },
+                  "Property": "Daily Return"
+                }
+              },
+              "queryRef": "_Measures.Daily Return",
+              "nativeQueryRef": "Daily Return"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Column": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "DimDate"
+                  }
+                },
+                "Property": "Date"
+              }
+            },
+            "direction": "Descending"
+          }
+        ]
+      }
+    },
+    "objects": {
+      "total": [
+        {
+          "properties": {
+            "totals": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

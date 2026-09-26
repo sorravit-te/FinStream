@@ -1,0 +1,182 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.12.0/schema.json",
+  "name": "2f0d479dd70a5a040693",
+  "position": {
+    "x": 398,
+    "y": 730,
+    "z": 6000,
+    "height": 236,
+    "width": 1448,
+    "tabOrder": 7000
+  },
+  "visual": {
+    "visualType": "tableEx",
+    "query": {
+      "queryState": {
+        "Values": {
+          "projections": [
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_market_macro"
+                    }
+                  },
+                  "Property": "trading_date"
+                }
+              },
+              "queryRef": "analytics mart_market_macro.trading_date",
+              "nativeQueryRef": "trading_date"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_market_macro"
+                    }
+                  },
+                  "Property": "current_ticker"
+                }
+              },
+              "queryRef": "analytics mart_market_macro.current_ticker",
+              "nativeQueryRef": "current_ticker"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_market_macro"
+                    }
+                  },
+                  "Property": "series_id"
+                }
+              },
+              "queryRef": "analytics mart_market_macro.series_id",
+              "nativeQueryRef": "series_id"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_market_macro"
+                    }
+                  },
+                  "Property": "market_close"
+                }
+              },
+              "queryRef": "Sum(analytics mart_market_macro.market_close)",
+              "nativeQueryRef": "market_close"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_market_macro"
+                    }
+                  },
+                  "Property": "market_volume"
+                }
+              },
+              "queryRef": "Sum(analytics mart_market_macro.market_volume)",
+              "nativeQueryRef": "market_volume"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_market_macro"
+                    }
+                  },
+                  "Property": "macro_observation_date"
+                }
+              },
+              "queryRef": "analytics mart_market_macro.macro_observation_date",
+              "nativeQueryRef": "macro_observation_date"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_market_macro"
+                    }
+                  },
+                  "Property": "macro_value"
+                }
+              },
+              "queryRef": "Sum(analytics mart_market_macro.macro_value)",
+              "nativeQueryRef": "macro_value"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_market_macro"
+                    }
+                  },
+                  "Property": "macro_age_days"
+                }
+              },
+              "queryRef": "Sum(analytics mart_market_macro.macro_age_days)",
+              "nativeQueryRef": "macro_age_days"
+            },
+            {
+              "field": {
+                "Column": {
+                  "Expression": {
+                    "SourceRef": {
+                      "Entity": "analytics mart_market_macro"
+                    }
+                  },
+                  "Property": "current_cik"
+                }
+              },
+              "queryRef": "analytics mart_market_macro.current_cik",
+              "nativeQueryRef": "current_cik"
+            }
+          ]
+        }
+      },
+      "sortDefinition": {
+        "sort": [
+          {
+            "field": {
+              "Column": {
+                "Expression": {
+                  "SourceRef": {
+                    "Entity": "analytics mart_market_macro"
+                  }
+                },
+                "Property": "trading_date"
+              }
+            },
+            "direction": "Descending"
+          }
+        ]
+      }
+    },
+    "objects": {
+      "total": [
+        {
+          "properties": {
+            "totals": {
+              "expr": {
+                "Literal": {
+                  "Value": "false"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "drillFilterOtherVisuals": true
+  }
+}

@@ -1,0 +1,34 @@
+relationship ba153d0a-434b-3dfb-69e8-0be08be38835
+	fromColumn: 'analytics mart_company_daily_performance'.company_key
+	toColumn: DimCompany.CompanyKey
+
+relationship 68dbcd0a-60bf-f657-3135-85c03b6b4f3f
+	fromColumn: 'analytics mart_company_financial_growth'.company_key
+	toColumn: DimCompany.CompanyKey
+
+relationship 238f7fa0-59d8-e786-eb0b-289332be6f90
+	fromColumn: 'analytics mart_market_macro'.company_key
+	toColumn: DimCompany.CompanyKey
+
+relationship 7fcb8897-e67c-8125-747d-e6740703013b
+	fromColumn: 'analytics mart_company_daily_performance'.trading_date
+	toColumn: DimDate.Date
+
+relationship 430758c3-04f5-77f2-79ba-feaf71b49d9c
+	fromColumn: 'analytics mart_company_financial_growth'.end_date
+	toColumn: DimDate.Date
+
+relationship 37f7ee9b-a1ff-a004-7897-9f628c198545
+	isActive: false
+	fromColumn: 'analytics mart_company_financial_growth'.filed_date
+	toColumn: DimDate.Date
+
+relationship 70a30910-ff26-16dd-b5f3-5a700f797f5f
+	fromColumn: 'analytics mart_market_macro'.trading_date
+	toColumn: DimDate.Date
+
+relationship 40bd08a0-a14f-6734-a034-5082aa1a6883
+	isActive: false
+	fromColumn: 'analytics mart_market_macro'.macro_observation_date
+	toColumn: DimDate.Date
+

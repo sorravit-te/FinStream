@@ -1,0 +1,255 @@
+table 'analytics mart_company_financial_growth'
+	lineageTag: 962b05f0-394e-4f16-ba42-d04788302484
+
+	column company_key
+		dataType: string
+		lineageTag: dc1daf4d-c953-4e83-bc28-5353069f9019
+		summarizeBy: none
+		sourceColumn: company_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column current_ticker
+		dataType: string
+		lineageTag: 5260c83b-6637-4fef-9129-9ae9a0bb1677
+		summarizeBy: none
+		sourceColumn: current_ticker
+
+		annotation SummarizationSetBy = Automatic
+
+	column source_cik
+		dataType: string
+		lineageTag: 3f517a4b-cd7d-49d7-8120-60ff5157f595
+		summarizeBy: none
+		sourceColumn: source_cik
+
+		annotation SummarizationSetBy = Automatic
+
+	column metric_key
+		dataType: string
+		lineageTag: b8881d03-16ef-4d89-b18e-193ce1473e0b
+		summarizeBy: none
+		sourceColumn: metric_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column metric_name
+		dataType: string
+		lineageTag: d98befd0-4b29-46a8-ad15-2195bf0aa2a2
+		summarizeBy: none
+		sourceColumn: metric_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column period_type
+		dataType: string
+		lineageTag: 85cfd811-10e8-497f-b1cc-8b8b00ebd07a
+		summarizeBy: none
+		sourceColumn: period_type
+
+		annotation SummarizationSetBy = Automatic
+
+	column taxonomy
+		dataType: string
+		lineageTag: 7123e910-5185-4d96-9de4-963b5440fa41
+		summarizeBy: none
+		sourceColumn: taxonomy
+
+		annotation SummarizationSetBy = Automatic
+
+	column concept
+		dataType: string
+		lineageTag: b53b4ac8-0937-43b6-8875-01e4563ebc37
+		summarizeBy: none
+		sourceColumn: concept
+
+		annotation SummarizationSetBy = Automatic
+
+	column unit
+		dataType: string
+		lineageTag: 28c96b35-9b73-4f84-af64-fe871b8ac9f8
+		summarizeBy: none
+		sourceColumn: unit
+
+		annotation SummarizationSetBy = Automatic
+
+	column fiscal_year
+		dataType: int64
+		formatString: 0
+		lineageTag: f141b442-b480-47f6-9c8e-81258d022c5a
+		summarizeBy: sum
+		sourceColumn: fiscal_year
+
+		annotation SummarizationSetBy = Automatic
+
+	column start_date
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: b369ad24-dfb3-4f04-a55e-53b4a1b9f67f
+		summarizeBy: none
+		sourceColumn: start_date
+
+		annotation SummarizationSetBy = Automatic
+
+	column end_date
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 2b4cf0f8-f8e3-4ad6-af9d-f1e30601cd43
+		summarizeBy: none
+		sourceColumn: end_date
+
+		annotation SummarizationSetBy = Automatic
+
+	column current_value
+		dataType: double
+		lineageTag: bcb803fb-e296-4a52-81b0-ea30279293c5
+		summarizeBy: sum
+		sourceColumn: current_value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column previous_end_date
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: bf4ba47d-6046-427c-be97-be9066a16fcd
+		summarizeBy: none
+		sourceColumn: previous_end_date
+
+		annotation SummarizationSetBy = Automatic
+
+	column previous_value
+		dataType: double
+		lineageTag: c4108708-8311-47b5-bded-5b24ddc1cd91
+		summarizeBy: sum
+		sourceColumn: previous_value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column absolute_change
+		dataType: double
+		lineageTag: 62ec250d-4099-49b2-8b9c-94508e3e3646
+		summarizeBy: sum
+		sourceColumn: absolute_change
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column growth_rate
+		dataType: double
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 3797e99d-ee22-4d5d-b4a5-dbc99edd8d34
+		summarizeBy: sum
+		sourceColumn: growth_rate
+
+		annotation SummarizationSetBy = Automatic
+
+	column form
+		dataType: string
+		lineageTag: 949fa5a6-a200-4ff4-b8ba-b0edbcc7df17
+		summarizeBy: none
+		sourceColumn: form
+
+		annotation SummarizationSetBy = Automatic
+
+	column filed_date
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 079ce954-9455-4dcf-bf0b-9e0af05ebad4
+		summarizeBy: none
+		sourceColumn: filed_date
+
+		annotation SummarizationSetBy = Automatic
+
+	column accession_number
+		dataType: string
+		lineageTag: 95709717-23d8-4680-bcec-6966a82b4e7f
+		summarizeBy: none
+		sourceColumn: accession_number
+
+		annotation SummarizationSetBy = Automatic
+
+	column MetricShortName =
+			
+			SWITCH(
+			    TRUE(),
+			
+			    'analytics mart_company_financial_growth'[metric_name]
+			        = "Equity Attributable to Parent",
+			        "Equity",
+			
+			    'analytics mart_company_financial_growth'[metric_name]
+			        = "Net Income (Loss) Attributable to Parent",
+			        "Net Income",
+			
+			    'analytics mart_company_financial_growth'[metric_name]
+			        = "Operating Cash Flow",
+			        "Operating Cash Flow",
+			
+			    CONTAINSSTRING(
+			        'analytics mart_company_financial_growth'[metric_name],
+			        "Revenue from Contracts with Customers"
+			    ),
+			        "Revenue",
+			
+			    'analytics mart_company_financial_growth'[metric_name]
+			        = "Total Assets",
+			        "Total Assets",
+			
+			    'analytics mart_company_financial_growth'[metric_name]
+			        = "Total Liabilities",
+			        "Total Liabilities",
+			
+			    'analytics mart_company_financial_growth'[metric_name]
+			)
+		lineageTag: e27eadfc-c862-421f-97dc-9c417e4c1914
+		summarizeBy: none
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'analytics mart_company_financial_growth' = m
+		mode: import
+		source =
+				let
+				    Source =
+				        PostgreSQL.Database(
+				            "localhost:5433",
+				            "finstream",
+				            [
+				                Query = "
+				SELECT
+				    company_key,
+				    current_ticker,
+				    source_cik,
+				    metric_key,
+				    metric_name,
+				    period_type,
+				    taxonomy,
+				    concept,
+				    unit,
+				    fiscal_year,
+				    start_date,
+				    end_date,
+				    CAST(current_value AS double precision) AS current_value,
+				    previous_end_date,
+				    CAST(previous_value AS double precision) AS previous_value,
+				    CAST(absolute_change AS double precision) AS absolute_change,
+				    CAST(growth_rate AS double precision) AS growth_rate,
+				    form,
+				    filed_date,
+				    accession_number
+				FROM analytics.mart_company_financial_growth
+				"
+				            ]
+				        )
+				in
+				    Source
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

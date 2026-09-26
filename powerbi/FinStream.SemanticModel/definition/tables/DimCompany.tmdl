@@ -1,0 +1,108 @@
+table DimCompany
+	lineageTag: 98ffd225-92f8-4c6b-942c-89c9e518a368
+
+	column CompanyKey
+		lineageTag: b505e23a-c073-467c-97b9-40f6f10a7cac
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [CompanyKey]
+
+		annotation SummarizationSetBy = Automatic
+
+	column CurrentTicker
+		lineageTag: 25ca3ed5-bb2f-43e7-9e39-8d2ffdfff109
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [CurrentTicker]
+
+		annotation SummarizationSetBy = Automatic
+
+	column CurrentCIK
+		lineageTag: dcfa0038-740f-4aff-a89b-6c82bd012183
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [CurrentCIK]
+
+		annotation SummarizationSetBy = Automatic
+
+	column CompanyName
+		lineageTag: c125a943-1390-4b8f-ac12-089a5edc4613
+		summarizeBy: none
+		isNameInferred
+		sourceColumn: [CompanyName]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition DimCompany = calculated
+		mode: import
+		source =
+				
+				VAR CompanyKeys =
+				    DISTINCT(
+				        UNION(
+				            SELECTCOLUMNS(
+				                'analytics mart_company_daily_performance',
+				                "CompanyKey",
+				                'analytics mart_company_daily_performance'[company_key]
+				            ),
+				            SELECTCOLUMNS(
+				                'analytics mart_company_financial_growth',
+				                "CompanyKey",
+				                'analytics mart_company_financial_growth'[company_key]
+				            ),
+				            SELECTCOLUMNS(
+				                'analytics mart_market_macro',
+				                "CompanyKey",
+				                'analytics mart_market_macro'[company_key]
+				            )
+				        )
+				    )
+				RETURN
+				    ADDCOLUMNS(
+				        CompanyKeys,
+				
+				        "CurrentTicker",
+				            VAR CompanyKeyValue = [CompanyKey]
+				            RETURN
+				                CALCULATE(
+				                    SELECTEDVALUE(
+				                        'analytics mart_company_daily_performance'[current_ticker]
+				                    ),
+				                    FILTER(
+				                        ALL('analytics mart_company_daily_performance'),
+				                        'analytics mart_company_daily_performance'[company_key]
+				                            = CompanyKeyValue
+				                    )
+				                ),
+				
+				        "CurrentCIK",
+				            VAR CompanyKeyValue = [CompanyKey]
+				            RETURN
+				                CALCULATE(
+				                    SELECTEDVALUE(
+				                        'analytics mart_company_daily_performance'[current_cik]
+				                    ),
+				                    FILTER(
+				                        ALL('analytics mart_company_daily_performance'),
+				                        'analytics mart_company_daily_performance'[company_key]
+				                            = CompanyKeyValue
+				                    )
+				                ),
+				
+				        "CompanyName",
+				            VAR CompanyKeyValue = [CompanyKey]
+				            RETURN
+				                CALCULATE(
+				                    SELECTEDVALUE(
+				                        'analytics mart_company_daily_performance'[company_name]
+				                    ),
+				                    FILTER(
+				                        ALL('analytics mart_company_daily_performance'),
+				                        'analytics mart_company_daily_performance'[company_key]
+				                            = CompanyKeyValue
+				                    )
+				                )
+				    )
+
+	annotation PBI_Id = a285c4932c1945999922023d73f6b74a
+

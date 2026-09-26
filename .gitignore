@@ -39,4 +39,8 @@ logs/
 /dbt/logs/
 /dbt/.user.yml
 
+# Power BI project-local artifacts
+**/.pbi/localSettings.json
+**/.pbi/cache.abf
+
 *.egg-info/

@@ -1,0 +1,136 @@
+table 'analytics mart_market_macro'
+	lineageTag: a9afc97a-3b59-4b2a-bc8a-fa1f8a19976f
+
+	column company_key
+		dataType: string
+		lineageTag: 518258e2-9b09-485b-a9e2-4ba8e169abc6
+		summarizeBy: none
+		sourceColumn: company_key
+
+		annotation SummarizationSetBy = Automatic
+
+	column current_ticker
+		dataType: string
+		lineageTag: e08ebf71-e992-437f-ba95-88d51572923f
+		summarizeBy: none
+		sourceColumn: current_ticker
+
+		annotation SummarizationSetBy = Automatic
+
+	column current_cik
+		dataType: string
+		lineageTag: 25019d57-6ea3-4596-9837-a24d9b0a383b
+		summarizeBy: none
+		sourceColumn: current_cik
+
+		annotation SummarizationSetBy = Automatic
+
+	column company_name
+		dataType: string
+		lineageTag: 7551938b-91b8-418c-bc38-b949a0a44c5d
+		summarizeBy: none
+		sourceColumn: company_name
+
+		annotation SummarizationSetBy = Automatic
+
+	column trading_date
+		dataType: dateTime
+		formatString: dd/mm/yyyy
+		lineageTag: c0c828c9-370b-49ae-8bc4-585381543885
+		summarizeBy: none
+		sourceColumn: trading_date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	column series_id
+		dataType: string
+		lineageTag: 76526fb7-1456-485d-9861-ab7dc4e05fe0
+		summarizeBy: none
+		sourceColumn: series_id
+
+		annotation SummarizationSetBy = Automatic
+
+	column market_close
+		dataType: double
+		lineageTag: 2594b304-7dbb-4125-bb02-72d1d88ae129
+		summarizeBy: sum
+		sourceColumn: market_close
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column market_volume
+		dataType: int64
+		formatString: 0
+		lineageTag: b56f558e-1dc2-4215-bb36-a25752396629
+		summarizeBy: sum
+		sourceColumn: market_volume
+
+		annotation SummarizationSetBy = Automatic
+
+	column macro_observation_date
+		dataType: dateTime
+		formatString: dd/mm/yyyy
+		lineageTag: 797392b9-31d7-44f1-8f48-4183d1ac5be0
+		summarizeBy: none
+		sourceColumn: macro_observation_date
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	column macro_value
+		dataType: double
+		lineageTag: 9be238ee-fe1d-4399-a58f-5fb7d43a4438
+		summarizeBy: sum
+		sourceColumn: macro_value
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column macro_age_days
+		dataType: int64
+		formatString: 0
+		lineageTag: 4ba3b44c-9a8c-47c8-b9ba-96fcc6937a6f
+		summarizeBy: sum
+		sourceColumn: macro_age_days
+
+		annotation SummarizationSetBy = Automatic
+
+	partition 'analytics mart_market_macro' = m
+		mode: import
+		source =
+				let
+				    Source =
+				        PostgreSQL.Database(
+				            "localhost:5433",
+				            "finstream",
+				            [
+				                Query = "
+				SELECT
+				    company_key,
+				    current_ticker,
+				    current_cik,
+				    company_name,
+				    trading_date,
+				    series_id,
+				    market_close,
+				    market_volume,
+				    macro_observation_date,
+				    CAST(macro_value AS double precision) AS macro_value,
+				    macro_age_days
+				FROM analytics.mart_market_macro
+				"
+				            ]
+				        )
+				in
+				    Source
+
+	annotation PBI_NavigationStepName = Navigation
+
+	annotation PBI_ResultType = Table
+

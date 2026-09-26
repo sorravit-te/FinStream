@@ -1,0 +1,24 @@
+model Model
+	culture: en-US
+	defaultPowerBIDataSourceVersion: powerBI_V3
+	sourceQueryCulture: th-TH
+	valueFilterBehavior: independent
+	dataAccessOptions
+		legacyRedirects
+		returnErrorValuesAsNull
+
+annotation __PBI_TimeIntelligenceEnabled = 0
+
+annotation PBI_QueryOrder = ["analytics mart_company_daily_performance","analytics mart_company_financial_growth","analytics mart_market_macro"]
+
+annotation PBI_ProTooling = ["DaxQueryView_Desktop","DevMode"]
+
+ref table 'analytics mart_company_daily_performance'
+ref table 'analytics mart_company_financial_growth'
+ref table 'analytics mart_market_macro'
+ref table DimCompany
+ref table DimDate
+ref table _Measures
+
+ref cultureInfo en-US
+

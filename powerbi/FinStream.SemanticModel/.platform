@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "SemanticModel",
+    "displayName": "FinStream"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "015775e9-0add-4aad-bbad-2f97b5300458"
+  }
+}

@@ -80,6 +80,7 @@ Kafka, Apache Spark, real-time trading infrastructure, and mandatory cloud infra
 - [Roadmap](docs/ROADMAP.md) — implementation sequence and exit criteria.
 - [Airflow Orchestration Contract](docs/AIRFLOW_ORCHESTRATION.md) — orchestration ownership, runtime/task boundaries, XCom, retry/idempotency, and local-runtime contracts.
 - [Docker Local Environment Contract](docs/DOCKER_LOCAL_ENVIRONMENT.md) — Docker Compose local-runtime boundaries and reproducibility requirements.
+- [Power BI Architecture and Runtime Contract](docs/POWER_BI.md) — canonical PBIP source, approved analytics marts, semantic model, and dashboard behavior; see the [runtime validation record](docs/POWER_BI_RUNTIME_VALIDATION.md) for Desktop evidence.
 
 ## Implementation
 

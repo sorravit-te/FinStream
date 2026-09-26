@@ -89,7 +89,7 @@ boundaries while making the manually triggered V1 pipeline reproducible locally.
 
 ### Power BI
 
-Power BI consumes prepared Gold-layer datasets. Shared business logic should be prepared upstream when appropriate rather than duplicated across dashboards.
+Power BI consumes prepared Gold-layer datasets. Shared business logic should be prepared upstream when appropriate rather than duplicated across dashboards. The canonical PBIP source, approved analytics-mart interface, semantic model, and dashboard boundary are defined in the [Power BI Architecture and Runtime Contract](POWER_BI.md); Desktop evidence is recorded separately in [Power BI Runtime Validation](POWER_BI_RUNTIME_VALIDATION.md).
 
 ### Streamlit
 

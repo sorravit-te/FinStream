@@ -1,0 +1,9 @@
+EVALUATE
+SELECTCOLUMNS(
+    DimCompany,
+    "CompanyKey", DimCompany[CompanyKey],
+    "Ticker", DimCompany[CurrentTicker],
+    "CIK", DimCompany[CurrentCIK],
+    "Company Name", DimCompany[CompanyName]
+)
+ORDER BY [CompanyKey]

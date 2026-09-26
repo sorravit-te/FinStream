@@ -1,0 +1,726 @@
+table _Measures
+	isHidden
+	lineageTag: ddff45d7-af0c-4177-afb6-ede944928621
+
+	measure Close =
+			
+			IF(
+			    HASONEVALUE(DimCompany[CompanyKey]),
+			    SELECTEDVALUE(
+			        'analytics mart_company_daily_performance'[close]
+			    )
+			)
+		lineageTag: 3948e3fd-0960-4185-bb13-6be7e7adc9a9
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Daily Return' =
+			
+			IF(
+			    HASONEVALUE(DimCompany[CompanyKey]),
+			    SELECTEDVALUE(
+			        'analytics mart_company_daily_performance'[daily_return]
+			    )
+			)
+		formatString: 0.0000%;-0.0000%;0.0000%
+		lineageTag: 0b68bc5b-cdfd-4338-a578-b7dc8280b05c
+
+	measure 'Daily Volume' =
+			
+			IF(
+			    HASONEVALUE(DimCompany[CompanyKey]),
+			    SELECTEDVALUE(
+			        'analytics mart_company_daily_performance'[volume]
+			    )
+			)
+		formatString: 0
+		lineageTag: cceeb0ce-55d0-44b1-a052-6954143393e3
+
+	measure 'Latest Trading Date' =
+			
+			IF(
+			    HASONEVALUE(DimCompany[CompanyKey]),
+			    MAX(
+			        'analytics mart_company_daily_performance'[trading_date]
+			    )
+			)
+		formatString: General Date
+		lineageTag: 124e4333-81e7-4258-a48d-cf6a52b5b782
+
+	measure 'Latest Close' =
+			
+			VAR LatestDate =
+			    [Latest Trading Date]
+			RETURN
+			    IF(
+			        HASONEVALUE(DimCompany[CompanyKey])
+			            && NOT ISBLANK(LatestDate),
+			        CALCULATE(
+			            SELECTEDVALUE(
+			                'analytics mart_company_daily_performance'[close]
+			            ),
+			            KEEPFILTERS(
+			                'analytics mart_company_daily_performance'[trading_date]
+			                    = LatestDate
+			            )
+			        )
+			    )
+		lineageTag: 4bb8dc05-9203-41e0-a59a-98fc1117be05
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Previous Trading Close' =
+			
+			VAR LatestDate =
+			    [Latest Trading Date]
+			RETURN
+			    IF(
+			        HASONEVALUE(DimCompany[CompanyKey])
+			            && NOT ISBLANK(LatestDate),
+			        CALCULATE(
+			            SELECTEDVALUE(
+			                'analytics mart_company_daily_performance'[previous_close]
+			            ),
+			            KEEPFILTERS(
+			                'analytics mart_company_daily_performance'[trading_date]
+			                    = LatestDate
+			            )
+			        )
+			    )
+		lineageTag: 2c00e3c2-f059-4e85-b40d-e55a77d384fc
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Daily Change' =
+			
+			VAR LatestDate =
+			    [Latest Trading Date]
+			RETURN
+			    IF(
+			        HASONEVALUE(DimCompany[CompanyKey])
+			            && NOT ISBLANK(LatestDate),
+			        CALCULATE(
+			            SELECTEDVALUE(
+			                'analytics mart_company_daily_performance'[daily_change]
+			            ),
+			            KEEPFILTERS(
+			                'analytics mart_company_daily_performance'[trading_date]
+			                    = LatestDate
+			            )
+			        )
+			    )
+		lineageTag: 05049cdf-f9f9-4706-9194-e85bc079486b
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Daily Change %' =
+			
+			VAR LatestDate =
+			    [Latest Trading Date]
+			RETURN
+			    IF(
+			        HASONEVALUE(DimCompany[CompanyKey])
+			            && NOT ISBLANK(LatestDate),
+			        CALCULATE(
+			            SELECTEDVALUE(
+			                'analytics mart_company_daily_performance'[daily_return]
+			            ),
+			            KEEPFILTERS(
+			                'analytics mart_company_daily_performance'[trading_date]
+			                    = LatestDate
+			            )
+			        )
+			    )
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: b673ca1f-4830-4335-a456-65d9573b0fdd
+
+	measure 'Period Start Close' =
+			
+			VAR FirstTradingDate =
+			    MIN(
+			        'analytics mart_company_daily_performance'[trading_date]
+			    )
+			RETURN
+			    IF(
+			        HASONEVALUE(DimCompany[CompanyKey])
+			            && NOT ISBLANK(FirstTradingDate),
+			        CALCULATE(
+			            SELECTEDVALUE(
+			                'analytics mart_company_daily_performance'[close]
+			            ),
+			            KEEPFILTERS(
+			                'analytics mart_company_daily_performance'[trading_date]
+			                    = FirstTradingDate
+			            )
+			        )
+			    )
+		lineageTag: 2b1ab7d1-2b06-479f-948b-640f6ac05794
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Period End Close' =
+			
+			VAR LastTradingDate =
+			    MAX(
+			        'analytics mart_company_daily_performance'[trading_date]
+			    )
+			RETURN
+			    IF(
+			        HASONEVALUE(DimCompany[CompanyKey])
+			            && NOT ISBLANK(LastTradingDate),
+			        CALCULATE(
+			            SELECTEDVALUE(
+			                'analytics mart_company_daily_performance'[close]
+			            ),
+			            KEEPFILTERS(
+			                'analytics mart_company_daily_performance'[trading_date]
+			                    = LastTradingDate
+			            )
+			        )
+			    )
+		lineageTag: 8639502f-a3b3-4191-8939-aaf031268a6c
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Selected Period Return' =
+			
+			VAR StartClose =
+			    [Period Start Close]
+			
+			VAR EndClose =
+			    [Period End Close]
+			
+			VAR TradingDayCount =
+			    CALCULATE(
+			        DISTINCTCOUNT(
+			            'analytics mart_company_daily_performance'[trading_date]
+			        )
+			    )
+			
+			RETURN
+			    IF(
+			        HASONEVALUE(DimCompany[CompanyKey])
+			            && TradingDayCount >= 2
+			            && NOT ISBLANK(StartClose)
+			            && NOT ISBLANK(EndClose)
+			            && StartClose <> 0,
+			        DIVIDE(
+			            EndClose,
+			            StartClose
+			        ) - 1
+			    )
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: e8cc3888-a188-4e16-aa22-acca23179f77
+
+	measure 'Average Daily Return' =
+			
+			IF(
+			    HASONEVALUE(DimCompany[CompanyKey]),
+			    AVERAGE(
+			        'analytics mart_company_daily_performance'[daily_return]
+			    )
+			)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: 15db9d18-df7f-4a4c-813c-8ff7a263277e
+
+	measure 'Minimum Close' =
+			
+			IF(
+			    HASONEVALUE(DimCompany[CompanyKey]),
+			    MIN(
+			        'analytics mart_company_daily_performance'[close]
+			    )
+			)
+		lineageTag: 3ea4c8ec-2e3f-476f-b848-661d1b67b9c4
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Maximum Close' =
+			
+			IF(
+			    HASONEVALUE(DimCompany[CompanyKey]),
+			    MAX(
+			        'analytics mart_company_daily_performance'[close]
+			    )
+			)
+		lineageTag: bf87d908-9da5-4ff3-9d63-dd06635473ed
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Average Close' =
+			
+			IF(
+			    HASONEVALUE(DimCompany[CompanyKey]),
+			    AVERAGE(
+			        'analytics mart_company_daily_performance'[close]
+			    )
+			)
+		lineageTag: 9e346e47-fcc7-40bc-8994-5ac9aef51838
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Total Volume' =
+			
+			IF(
+			    HASONEVALUE(DimCompany[CompanyKey]),
+			    SUM(
+			        'analytics mart_company_daily_performance'[volume]
+			    )
+			)
+		formatString: 0
+		lineageTag: b6e57408-e727-4e96-90af-e3071fca806d
+
+	measure 'Average Daily Volume' =
+			
+			IF(
+			    HASONEVALUE(DimCompany[CompanyKey]),
+			    AVERAGE(
+			        'analytics mart_company_daily_performance'[volume]
+			    )
+			)
+		lineageTag: 48a853ad-cfa2-41da-8537-5a854d0bce4e
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Trading Days' =
+			
+			IF(
+			    HASONEVALUE(DimCompany[CompanyKey]),
+			    DISTINCTCOUNT(
+			        'analytics mart_company_daily_performance'[trading_date]
+			    )
+			)
+		formatString: 0
+		lineageTag: 40d44cc4-256b-410d-8f3b-c5fe0291172a
+
+	measure 'Financial Context Is Valid' =
+			
+			VAR CompanyCount =
+			    CALCULATE(
+			        DISTINCTCOUNT(DimCompany[CompanyKey]),
+			        ALLSELECTED(DimCompany[CompanyKey])
+			    )
+			VAR MetricCount =
+			    CALCULATE(
+			        DISTINCTCOUNT(
+			            'analytics mart_company_financial_growth'[metric_key]
+			        ),
+			        ALLSELECTED(
+			            'analytics mart_company_financial_growth'[metric_key]
+			        )
+			    )
+			VAR UnitCount =
+			    CALCULATE(
+			        DISTINCTCOUNT(
+			            'analytics mart_company_financial_growth'[unit]
+			        ),
+			        ALLSELECTED(
+			            'analytics mart_company_financial_growth'[unit]
+			        )
+			    )
+			RETURN
+			    IF(
+			        CompanyCount = 1
+			            && MetricCount = 1
+			            && UnitCount = 1,
+			        1,
+			        0
+			    )
+		formatString: 0
+		lineageTag: 0022c408-dcd5-448d-ab8c-ef06f9ca7069
+
+	measure 'Financial Value' =
+			
+			IF(
+			    [Financial Context Is Valid] = 1,
+			    SELECTEDVALUE(
+			        'analytics mart_company_financial_growth'[current_value]
+			    )
+			)
+		lineageTag: 6f871e47-a1d5-4cf4-a5b7-52c651582605
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Growth Rate' =
+			
+			IF(
+			    [Financial Context Is Valid] = 1,
+			    SELECTEDVALUE(
+			        'analytics mart_company_financial_growth'[growth_rate]
+			    )
+			)
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: cf92a4b7-b6fe-46e9-b4cb-18d07b8d9380
+
+	measure 'Latest Reporting Period' =
+			
+			IF(
+			    [Financial Context Is Valid] = 1,
+			    MAX(
+			        'analytics mart_company_financial_growth'[end_date]
+			    )
+			)
+		formatString: dd/mm/yyyy
+		lineageTag: 63f529be-1055-4096-919a-e11b6143046e
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	measure 'Prior Comparable Value' =
+			
+			VAR LatestDate =
+			    [Latest Reporting Period]
+			VAR PriorValue =
+			    CALCULATE(
+			        SELECTEDVALUE(
+			            'analytics mart_company_financial_growth'[previous_value]
+			        ),
+			        KEEPFILTERS(
+			            'analytics mart_company_financial_growth'[end_date]
+			                = LatestDate
+			        )
+			    )
+			VAR ComparableChange =
+			    CALCULATE(
+			        SELECTEDVALUE(
+			            'analytics mart_company_financial_growth'[absolute_change]
+			        ),
+			        KEEPFILTERS(
+			            'analytics mart_company_financial_growth'[end_date]
+			                = LatestDate
+			        )
+			    )
+			RETURN
+			    IF(
+			        [Financial Context Is Valid] = 1
+			            && NOT ISBLANK(LatestDate)
+			            && NOT ISBLANK(ComparableChange),
+			        PriorValue
+			    )
+		lineageTag: 5ac704c6-0de0-4d66-9d3b-bc82b4ed5b45
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Latest Financial Value' =
+			
+			VAR LatestDate =
+			    [Latest Reporting Period]
+			RETURN
+			    IF(
+			        [Financial Context Is Valid] = 1
+			            && NOT ISBLANK(LatestDate),
+			        CALCULATE(
+			            SELECTEDVALUE(
+			                'analytics mart_company_financial_growth'[current_value]
+			            ),
+			            KEEPFILTERS(
+			                'analytics mart_company_financial_growth'[end_date]
+			                    = LatestDate
+			            )
+			        )
+			    )
+		lineageTag: a7024307-3e55-40e3-ab40-12f6e3eed228
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Latest Growth Rate' =
+			
+			VAR LatestDate =
+			    [Latest Reporting Period]
+			RETURN
+			    IF(
+			        [Financial Context Is Valid] = 1
+			            && NOT ISBLANK(LatestDate),
+			        CALCULATE(
+			            SELECTEDVALUE(
+			                'analytics mart_company_financial_growth'[growth_rate]
+			            ),
+			            KEEPFILTERS(
+			                'analytics mart_company_financial_growth'[end_date]
+			                    = LatestDate
+			            )
+			        )
+			    )
+		formatString: 0.00%;-0.00%;0.00%
+		lineageTag: a36b354f-0ac2-4d2c-813d-18836e01fcd3
+
+	measure 'Latest Filed Date' =
+			
+			VAR LatestDate =
+			    [Latest Reporting Period]
+			RETURN
+			    IF(
+			        [Financial Context Is Valid] = 1
+			            && NOT ISBLANK(LatestDate),
+			        CALCULATE(
+			            SELECTEDVALUE(
+			                'analytics mart_company_financial_growth'[filed_date]
+			            ),
+			            KEEPFILTERS(
+			                'analytics mart_company_financial_growth'[end_date]
+			                    = LatestDate
+			            )
+			        )
+			    )
+		formatString: dd/mm/yyyy
+		lineageTag: 46f7f12b-eefc-4233-ac01-b7153e377c3c
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	measure 'Financial Periods' =
+			
+			IF(
+			    [Financial Context Is Valid] = 1,
+			    DISTINCTCOUNT(
+			        'analytics mart_company_financial_growth'[end_date]
+			    )
+			)
+		formatString: 0
+		lineageTag: cd9815a9-0425-4771-89e0-433206599ca4
+
+	measure 'Minimum Financial Value' =
+			
+			IF(
+			    [Financial Context Is Valid] = 1,
+			    MIN(
+			        'analytics mart_company_financial_growth'[current_value]
+			    )
+			)
+		lineageTag: cf207db9-57db-4632-83ce-eb5520990077
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Maximum Financial Value' =
+			
+			IF(
+			    [Financial Context Is Valid] = 1,
+			    MAX(
+			        'analytics mart_company_financial_growth'[current_value]
+			    )
+			)
+		lineageTag: 3151e4fb-c816-402b-aa1c-558235fd5dcc
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Average Financial Value' =
+			
+			IF(
+			    [Financial Context Is Valid] = 1,
+			    AVERAGE(
+			        'analytics mart_company_financial_growth'[current_value]
+			    )
+			)
+		lineageTag: 91920398-31df-4afe-9861-f233b2cc554a
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Market Macro Context Is Valid' =
+			
+			VAR CompanyCount =
+			    CALCULATE(
+			        DISTINCTCOUNT(DimCompany[CompanyKey]),
+			        ALLSELECTED(DimCompany[CompanyKey])
+			    )
+			VAR SeriesCount =
+			    CALCULATE(
+			        DISTINCTCOUNT(
+			            'analytics mart_market_macro'[series_id]
+			        ),
+			        ALLSELECTED(
+			            'analytics mart_market_macro'[series_id]
+			        )
+			    )
+			RETURN
+			    IF(
+			        CompanyCount = 1
+			            && SeriesCount = 1,
+			        1,
+			        0
+			    )
+		formatString: 0
+		lineageTag: 66a7361f-3e18-44ec-8e23-fbf196f3ccc1
+
+	measure 'Market Close' =
+			
+			IF(
+			    [Market Macro Context Is Valid] = 1,
+			    SELECTEDVALUE(
+			        'analytics mart_market_macro'[market_close]
+			    )
+			)
+		lineageTag: cdcc47f1-316f-496e-a3fa-fb1aa182e15a
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Macro Value' =
+			
+			IF(
+			    [Market Macro Context Is Valid] = 1,
+			    SELECTEDVALUE(
+			        'analytics mart_market_macro'[macro_value]
+			    )
+			)
+		lineageTag: 6451ddcd-a9f2-40e4-b7cf-22f5ab54cab4
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Macro Observation Date' =
+			
+			IF(
+			    [Market Macro Context Is Valid] = 1,
+			    SELECTEDVALUE(
+			        'analytics mart_market_macro'[macro_observation_date]
+			    )
+			)
+		formatString: General Date
+		lineageTag: 6ccccb79-5e78-4d0e-8ffc-6b64d5a504c5
+
+	measure 'Macro Observation Age' =
+			
+			IF(
+			    [Market Macro Context Is Valid] = 1,
+			    SELECTEDVALUE(
+			        'analytics mart_market_macro'[macro_age_days]
+			    )
+			)
+		formatString: 0
+		lineageTag: fb1dfe20-89e4-4323-bd48-54178b3430e3
+
+	measure 'Market Macro Latest Trading Date' =
+			
+			IF(
+			    [Market Macro Context Is Valid] = 1,
+			    MAX(
+			        'analytics mart_market_macro'[trading_date]
+			    )
+			)
+		formatString: General Date
+		lineageTag: d856f56c-d216-435e-b637-8492e09f8f4d
+
+	measure 'Latest Market Close' =
+			
+			VAR LatestDate =
+			    [Market Macro Latest Trading Date]
+			RETURN
+			    IF(
+			        [Market Macro Context Is Valid] = 1
+			            && NOT ISBLANK(LatestDate),
+			        CALCULATE(
+			            SELECTEDVALUE(
+			                'analytics mart_market_macro'[market_close]
+			            ),
+			            KEEPFILTERS(
+			                'analytics mart_market_macro'[trading_date]
+			                    = LatestDate
+			            )
+			        )
+			    )
+		lineageTag: b247711b-7c34-46ad-a291-1e443bbbe483
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Latest Aligned Macro Value' =
+			
+			VAR LatestDate =
+			    [Market Macro Latest Trading Date]
+			RETURN
+			    IF(
+			        [Market Macro Context Is Valid] = 1
+			            && NOT ISBLANK(LatestDate),
+			        CALCULATE(
+			            SELECTEDVALUE(
+			                'analytics mart_market_macro'[macro_value]
+			            ),
+			            KEEPFILTERS(
+			                'analytics mart_market_macro'[trading_date]
+			                    = LatestDate
+			            )
+			        )
+			    )
+		lineageTag: f0eecb44-97a6-4531-9de5-3deb681f3ccb
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	measure 'Latest Macro Observation Date' =
+			
+			VAR LatestDate =
+			    [Market Macro Latest Trading Date]
+			RETURN
+			    IF(
+			        [Market Macro Context Is Valid] = 1
+			            && NOT ISBLANK(LatestDate),
+			        CALCULATE(
+			            SELECTEDVALUE(
+			                'analytics mart_market_macro'[macro_observation_date]
+			            ),
+			            KEEPFILTERS(
+			                'analytics mart_market_macro'[trading_date]
+			                    = LatestDate
+			            )
+			        )
+			    )
+		formatString: dd/mm/yyyy
+		lineageTag: f3d0e3b0-4e8f-4ed4-b3d2-f6de222c16ec
+
+		annotation PBI_FormatHint = {"isDateTimeCustom":true}
+
+	measure 'Latest Macro Observation Age' =
+			
+			VAR LatestDate =
+			    [Market Macro Latest Trading Date]
+			RETURN
+			    IF(
+			        [Market Macro Context Is Valid] = 1
+			            && NOT ISBLANK(LatestDate),
+			        CALCULATE(
+			            SELECTEDVALUE(
+			                'analytics mart_market_macro'[macro_age_days]
+			            ),
+			            KEEPFILTERS(
+			                'analytics mart_market_macro'[trading_date]
+			                    = LatestDate
+			            )
+			        )
+			    )
+		formatString: 0
+		lineageTag: 0f8cf323-a08d-4763-84d4-1c988c4e5d6f
+
+	measure 'Market Macro Trading Days' =
+			
+			IF(
+			    [Market Macro Context Is Valid] = 1,
+			    DISTINCTCOUNT(
+			        'analytics mart_market_macro'[trading_date]
+			    )
+			)
+		formatString: 0
+		lineageTag: da27f6f7-5dcf-40f1-8202-92ef2a21ba74
+
+	measure 'Distinct Macro Observation Dates' =
+			
+			IF(
+			    [Market Macro Context Is Valid] = 1,
+			    DISTINCTCOUNT(
+			        'analytics mart_market_macro'[macro_observation_date]
+			    )
+			)
+		formatString: 0
+		lineageTag: 9e6b1ccb-d9cc-4003-8e3e-ecdb22df447e
+
+	column Placeholder
+		isHidden
+		formatString: 0
+		lineageTag: a23c8d4d-015e-406d-8a5f-b124e3dd99ac
+		summarizeBy: sum
+		isNameInferred
+		sourceColumn: [Placeholder]
+
+		annotation SummarizationSetBy = Automatic
+
+	partition _Measures = calculated
+		mode: import
+		source = Row("Placeholder", BLANK())
+
+	annotation PBI_Id = a3223f7a91f24c7b9a9572a7641d6c25
+
+	annotation 436ba87b-9c83-4389-a31b-ebd06a36be98 = {"Expression":""}
+

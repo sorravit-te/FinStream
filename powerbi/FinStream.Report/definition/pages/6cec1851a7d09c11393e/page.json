@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/page/2.1.0/schema.json",
+  "name": "6cec1851a7d09c11393e",
+  "displayName": "Market Performance",
+  "displayOption": "FitToPage",
+  "height": 1080,
+  "width": 1920,
+  "pageBinding": {
+    "name": "004e5ea0b475a74a7535",
+    "type": "Default",
+    "parameters": []
+  },
+  "visualInteractions": [
+    {
+      "source": "cc77f92fc909a39cbbe2",
+      "target": "b8cf75cee2323eae36d2",
+      "type": "DataFilter"
+    },
+    {
+      "source": "cc77f92fc909a39cbbe2",
+      "target": "9f7ddf0baedd685a7257",
+      "type": "DataFilter"
+    },
+    {
+      "source": "cc77f92fc909a39cbbe2",
+      "target": "fea7157ac40dd1088624",
+      "type": "DataFilter"
+    },
+    {
+      "source": "cc77f92fc909a39cbbe2",
+      "target": "90b8f77097a07a8099d6",
+      "type": "DataFilter"
+    },
+    {
+      "source": "cc77f92fc909a39cbbe2",
+      "target": "3ba6c7f4e397900cca00",
+      "type": "NoFilter"
+    }
+  ]
+}
