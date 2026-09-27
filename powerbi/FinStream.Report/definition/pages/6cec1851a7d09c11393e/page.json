@@ -28,11 +28,6 @@
     },
     {
       "source": "cc77f92fc909a39cbbe2",
-      "target": "90b8f77097a07a8099d6",
-      "type": "DataFilter"
-    },
-    {
-      "source": "cc77f92fc909a39cbbe2",
       "target": "3ba6c7f4e397900cca00",
       "type": "NoFilter"
     }
