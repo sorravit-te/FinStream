@@ -5,7 +5,7 @@
   &nbsp;&nbsp;&nbsp;
   <img src="https://www.postgresql.org/media/img/about/press/elephant.png" height="42" alt="PostgreSQL" title="PostgreSQL">
   &nbsp;&nbsp;&nbsp;
-  <img src="https://api.iconify.design/logos/dbt-icon.svg" height="42" alt="dbt" title="dbt">
+  <img src="https://raw.githubusercontent.com/dbt-labs/docs.getdbt.com/current/website/static/img/icons/dbt-bit.svg" height="42" alt="dbt" title="dbt">
   &nbsp;&nbsp;&nbsp;
   <img src="https://cwiki.apache.org/confluence/download/attachments/145723561/airflow_64x64_emoji_transparent.png" height="42" alt="Apache Airflow" title="Apache Airflow">
   &nbsp;&nbsp;&nbsp;
