@@ -585,13 +585,13 @@ def test_real_postgres_entity_aware_registry_ids_and_schema_upgrade(
 
         with connection.cursor() as cursor:
             cursor.execute(
-                """SELECT pg_get_constraintdef(constraint.oid)
-                    FROM pg_constraint AS constraint
-                    JOIN pg_class AS relation ON relation.oid = constraint.conrelid
+                """SELECT pg_get_constraintdef(constraint_row.oid)
+                    FROM pg_constraint AS constraint_row
+                    JOIN pg_class AS relation ON relation.oid = constraint_row.conrelid
                     JOIN pg_namespace AS namespace ON namespace.oid = relation.relnamespace
                     WHERE namespace.nspname = 'source_data'
                       AND relation.relname = 'ingestion_runs'
-                      AND constraint.conname = 'ck_ingestion_runs_run_id_format'"""
+                      AND constraint_row.conname = 'ck_ingestion_runs_run_id_format'"""
             )
             assert "--entity-" in cursor.fetchone()[0]
 

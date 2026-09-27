@@ -1,89 +1,80 @@
 # FinStream
 
-FinStream is an end-to-end Data Engineering project that combines corporate financial, market, and macroeconomic data into analytics-ready datasets. It emphasizes reliable ingestion, source-data preservation, standardized modeling, data quality, incremental processing, and reproducible workflows. It is not a stock-prediction or trading project.
+<p align="center">
+  <img src="https://s3.dualstack.us-east-2.amazonaws.com/pythondotorg-assets/media/files/python-logo-only.svg" height="42" alt="Python" title="Python">
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://www.postgresql.org/media/img/about/press/elephant.png" height="42" alt="PostgreSQL" title="PostgreSQL">
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://api.iconify.design/logos/dbt-icon.svg" height="42" alt="dbt" title="dbt">
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://cwiki.apache.org/confluence/download/attachments/145723561/airflow_64x64_emoji_transparent.png" height="42" alt="Apache Airflow" title="Apache Airflow">
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://www.docker.com/app/uploads/2024/02/cropped-docker-logo-favicon-192x192.png" height="42" alt="Docker" title="Docker">
+  &nbsp;&nbsp;&nbsp;
+  <img src="https://raw.githubusercontent.com/microsoft/PowerBI-Icons/main/SVG/Power-BI.svg" height="42" alt="Power BI" title="Power BI">
+</p>
 
-## Data Domains
+FinStream is a batch data platform for SEC EDGAR filings, Twelve Data daily
+prices, and FRED macroeconomic series. It preserves source data, builds
+PostgreSQL analytics marts with dbt, orchestrates manual runs with Airflow, and
+exposes the marts through Power BI.
 
-| Domain | Source | Initial use |
-| --- | --- | --- |
-| Corporate financial data | SEC EDGAR | Filings and structured XBRL financial facts |
-| Market data | Twelve Data | Daily OHLCV market data |
-| Macroeconomic data | FRED | Economic indicators with mixed frequencies |
+**Coverage:** AAPL, MSFT, NVDA, AMZN, XOM, WMT | FRED: DFF, CPIAUCSL, UNRATE,
+GDPC1, DGS10
 
-Initial companies:
-
-```text
-AAPL
-MSFT
-NVDA
-AMZN
-XOM
-WMT
-```
-
-Initial FRED series:
-
-```text
-DFF
-CPIAUCSL
-UNRATE
-GDPC1
-DGS10
-```
-
-## Data Flow
+## Architecture
 
 ```mermaid
 flowchart LR
-    A[SEC EDGAR<br/>Financial Data] --> D[Python Ingestion<br/>Source Retrieval & Validation]
-    B[Twelve Data<br/>Market Data] --> D
-    C[FRED<br/>Macroeconomic Data] --> D
-
-    D --> E[Raw / Bronze Data<br/>JSON & Parquet]
-    E --> F[PostgreSQL<br/>Standardized Storage]
-    F --> G[dbt<br/>Silver & Gold Transformations]
-    G --> H[Analytics Marts<br/>Prepared Datasets]
-    H --> I[Power BI<br/>Dashboards & Analysis]
-    H --> J[Streamlit<br/>Interactive Analytics Application]
+    A[SEC EDGAR] --> D[Python ingestion]
+    B[Twelve Data] --> D
+    C[FRED] --> D
+    D --> E[Bronze JSON and Parquet]
+    E --> F[PostgreSQL source_data]
+    F --> G[dbt Silver and Gold]
+    G --> H[Analytics marts]
+    H --> I[Power BI]
 ```
 
-Apache Airflow has an optional development/runtime foundation, Airflow-independent source, dbt, and quality-monitoring runtime adapters, and a manually triggered V1 pipeline DAG. The DAG coordinates configured Market, SEC, and FRED source tasks, then `dbt seed`, `dbt run`, and independent `dbt test` and read-only monitoring tasks. This V1 DAG has been locally end-to-end validated with Airflow 3.3.2; no production deployment or automatic schedule is claimed. Docker Compose provides a reproducible local PostgreSQL/Airflow runtime with API, scheduler, and DAG-processor services; scheduler task-runtime configuration and durable local data volumes are available, and the complete manually triggered V1 pipeline has been validated in the local Docker environment. GitHub Actions remains a separate planned V1 concern. Automated testing is introduced incrementally alongside implemented components.
+## Highlights
 
-## Modeling Approach
+- Immutable Bronze artifacts with source, dataset, run, and row provenance.
+- PostgreSQL constraints and replay checks preserve valid source revisions.
+- dbt models and tests produce documented Silver, Gold, and mart relations.
+- Docker Compose runs PostgreSQL and Airflow locally; `finstream_v1_pipeline`
+  is manually triggered.
+- GitHub Actions validates Python tests, PostgreSQL integration, and dbt checks
+  on pushes to main and pull requests.
+- Read-only operational status reports database, provenance, Bronze, analytics,
+  and informational recency state.
 
-- **Bronze:** source-preserving data with minimal interpretation.
-- **Silver:** cleaned, typed, standardized, deduplicated, source-aligned data.
-- **Gold:** analytics-ready dimensions, facts, and marts.
+## Quick Start
 
-Source identifiers remain available for traceability, model grains are explicitly documented, and financial, market, and macroeconomic data are not combined without defined temporal-alignment rules.
+Use the repository virtual environment and follow the concise operational
+commands in the [Runbook](docs/RUNBOOK.md). The dependency source of truth is
+`pyproject.toml`; no `requirements.txt` is used.
 
-## V1 Technology Direction
+## Dashboard Preview
 
-The agreed V1 technology direction is Python; JSON and Parquet; PostgreSQL; dbt; Apache Airflow; Docker Compose; pytest and dbt tests; GitHub Actions; Power BI; and Streamlit. This direction describes planned V1 components, not a claim that every technology is already implemented.
+These Power BI pages present the approved marts; see the [Power BI guide](docs/POWER_BI.md) for their data contract and refresh guidance.
 
-Kafka, Apache Spark, real-time trading infrastructure, and mandatory cloud infrastructure are outside V1.
-
-## Engineering Goals
-
-- Incremental source ingestion where appropriate.
-- Idempotent processing and duplicate prevention.
-- Source-data traceability and data-quality validation.
-- Clear separation between ingestion, transformation, orchestration, BI, and interactive analytical applications.
-- Reproducible local development and replaceable external-provider integrations.
+<p align="center">
+  <a href="docs/assets/dashboard-market.jpg">
+    <img src="docs/assets/dashboard-market.jpg" width="32%" alt="Market Performance dashboard">
+  </a>
+  <a href="docs/assets/dashboard-financial.jpg">
+    <img src="docs/assets/dashboard-financial.jpg" width="32%" alt="Company Financial dashboard">
+  </a>
+  <a href="docs/assets/dashboard-market-macro.jpg">
+    <img src="docs/assets/dashboard-market-macro.jpg" width="32%" alt="Market and Macro dashboard">
+  </a>
+</p>
 
 ## Documentation
 
-- [Project Requirements](docs/PROJECT_REQUIREMENTS.md) — scope, goals, requirements, and non-goals.
-- [Architecture](docs/ARCHITECTURE.md) — system architecture, data flow, and component responsibilities.
-- [Data Sources](docs/DATA_SOURCES.md) — provider behavior and source constraints.
-- [Data Model](docs/DATA_MODEL.md) — logical models, grains, identities, and relationships.
-- [Roadmap](docs/ROADMAP.md) — implementation sequence and exit criteria.
-- [Airflow Orchestration Contract](docs/AIRFLOW_ORCHESTRATION.md) — orchestration ownership, runtime/task boundaries, XCom, retry/idempotency, and local-runtime contracts.
-- [Docker Local Environment Contract](docs/DOCKER_LOCAL_ENVIRONMENT.md) — Docker Compose local-runtime boundaries and reproducibility requirements.
-- [Power BI Architecture and Runtime Contract](docs/POWER_BI.md) — canonical PBIP source, approved analytics marts, semantic model, and dashboard behavior; see the [runtime validation record](docs/POWER_BI_RUNTIME_VALIDATION.md) for Desktop evidence.
-
-## Implementation
-
-FinStream is being implemented incrementally according to the roadmap. Documentation may describe agreed V1 components before implementation is complete; planned functionality is not currently available.
-
-Setup instructions, runnable examples, screenshots, and descriptions of implemented capabilities will be added as their corresponding implementation stages are completed.
+- [Architecture](docs/ARCHITECTURE.md)
+- [Data Sources](docs/DATA_SOURCES.md)
+- [Data Model](docs/DATA_MODEL.md)
+- [Data Quality](docs/DATA_QUALITY.md)
+- [Power BI](docs/POWER_BI.md)
+- [Runbook](docs/RUNBOOK.md)

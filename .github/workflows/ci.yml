@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  python-tests:
+    name: Python tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install project and test dependencies
+        run: python -m pip install ".[dev]"
+      - name: Run pytest
+        run: pytest
+
+  dbt-static-validation:
+    name: dbt static validation
+    runs-on: ubuntu-24.04
+    env:
+      DBT_POSTGRES_HOST: ci-static-validation
+      DBT_POSTGRES_PORT: "5432"
+      DBT_POSTGRES_USER: finstream_ci
+      DBT_POSTGRES_PASSWORD: finstream_ci_placeholder
+      DBT_POSTGRES_DBNAME: finstream_ci
+      DBT_POSTGRES_SCHEMA: analytics
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install project dependencies
+        run: python -m pip install .
+      - name: Resolve dbt dependencies
+        run: dbt deps --project-dir dbt --profiles-dir dbt
+      - name: Parse dbt project
+        run: dbt parse --project-dir dbt --profiles-dir dbt
+
+  postgres-integration:
+    name: PostgreSQL integration
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16.15-bookworm
+        env:
+          POSTGRES_DB: finstream_test
+          POSTGRES_USER: finstream
+          POSTGRES_PASSWORD: finstream
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U finstream -d finstream_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      FINSTREAM_TEST_POSTGRES_DSN: postgresql://finstream:finstream@127.0.0.1:5432/finstream_test
+      DBT_POSTGRES_HOST: 127.0.0.1
+      DBT_POSTGRES_PORT: "5432"
+      DBT_POSTGRES_USER: finstream
+      DBT_POSTGRES_PASSWORD: finstream
+      DBT_POSTGRES_DBNAME: finstream_test
+      DBT_POSTGRES_SCHEMA: analytics
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install project and test dependencies
+        run: python -m pip install ".[dev]"
+      - name: Run PostgreSQL-backed pytest suite
+        run: pytest
+      - name: Resolve dbt dependencies
+        run: dbt deps --project-dir dbt --profiles-dir dbt
+      - name: Prepare deterministic dbt source data
+        run: python scripts/prepare_ci_dbt_source_data.py
+      - name: Build and test dbt graph
+        run: dbt build --project-dir dbt --profiles-dir dbt

@@ -48,11 +48,17 @@ def run_quality_monitoring(
     _validate_as_of(as_of)
     active_settings = settings if settings is not None else load_settings()
     with connect_postgres(active_settings.postgres_dsn) as connection:
-        signals = _collect_signals(connection, as_of=as_of)
+        signals = collect_quality_signals(connection, as_of=as_of)
     return _serialize_monitoring_result(as_of=as_of, signals=signals)
 
 
-def _collect_signals(connection: object, *, as_of: date) -> list[QualitySignal]:
+def collect_quality_signals(
+    connection: object,
+    *,
+    as_of: date,
+) -> list[QualitySignal]:
+    """Collect the approved read-only quality signals on one open connection."""
+    _validate_as_of(as_of)
     signals: list[QualitySignal] = []
     for company in INITIAL_SEC_COMPANIES:
         signals.append(monitor_market_freshness(connection, company.ticker, as_of=as_of))
