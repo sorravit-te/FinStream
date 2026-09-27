@@ -165,6 +165,7 @@ def test_dag_source_uses_the_approved_static_contract() -> None:
     assert keywords["schedule"].value is None
     assert isinstance(keywords["catchup"], ast.Constant)
     assert keywords["catchup"].value is False
+    assert "is_paused_upon_creation" not in keywords
 
     assignments = _module_assignments(tree)
     assert isinstance(assignments["SOURCE_SCHEMA_RETRIES"], ast.Constant)
@@ -302,6 +303,8 @@ def test_market_daily_dag_source_uses_the_approved_static_contract() -> None:
     assert keywords["catchup"].value is False
     assert isinstance(keywords["max_active_runs"], ast.Constant)
     assert keywords["max_active_runs"].value == 1
+    assert isinstance(keywords["is_paused_upon_creation"], ast.Constant)
+    assert keywords["is_paused_upon_creation"].value is False
     start_date = keywords["start_date"]
     assert isinstance(start_date, ast.Call)
     assert isinstance(start_date.func, ast.Attribute)
@@ -422,6 +425,7 @@ def test_market_daily_dag_import_and_task_structure_when_airflow_is_installed() 
     assert dag.schedule == "30 18 * * 1-5"
     assert dag.catchup is False
     assert dag.max_active_runs == 1
+    assert dag.is_paused_upon_creation is False
     assert dag.timezone.name == "America/New_York"
     assert set(dag.task_ids) == expected_task_ids
     assert len(dag.task_ids) == len(expected_task_ids)

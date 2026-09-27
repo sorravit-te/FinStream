@@ -30,6 +30,7 @@ STANDARD_RETRY_DELAY = timedelta(minutes=1)
     start_date=pendulum.datetime(2025, 1, 1, tz="America/New_York"),
     catchup=False,
     max_active_runs=1,
+    is_paused_upon_creation=False,
 )
 def finstream_market_daily():
     """Ingest configured Market symbols after each weekday US market close."""
