@@ -17,6 +17,9 @@ from finstream.sec.companies import (
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DAG_PATH = REPOSITORY_ROOT / "orchestration" / "dags" / "finstream_v1_pipeline.py"
+MARKET_DAILY_DAG_PATH = (
+    REPOSITORY_ROOT / "orchestration" / "dags" / "finstream_market_daily.py"
+)
 
 
 def _module_assignments(tree: ast.Module) -> dict[str, ast.expr]:
@@ -82,6 +85,22 @@ def _source_task_ids() -> set[str]:
         "dbt_run",
         "dbt_test",
         "quality_monitoring",
+    }
+
+
+def _market_daily_task_ids() -> set[str]:
+    return {
+        *(f"market_{company.ticker.lower()}" for company in INITIAL_SEC_COMPANIES),
+        "source_schema",
+        "dbt_run",
+        "dbt_test",
+        "quality_monitoring",
+    }
+
+
+def _market_daily_source_task_ids() -> set[str]:
+    return {
+        f"market_{company.ticker.lower()}" for company in INITIAL_SEC_COMPANIES
     }
 
 
@@ -231,6 +250,107 @@ def test_orchestration_runtimes_do_not_define_airflow_retry_policy() -> None:
         assert "max_retry_delay" not in source
 
 
+def test_market_daily_dag_source_uses_the_approved_static_contract() -> None:
+    source = MARKET_DAILY_DAG_PATH.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+
+    assert "from airflow.sdk import dag, task" in source
+    assert "from airflow.sdk.types import DagRunProtocol" in source
+    assert 'dag_id="finstream_market_daily"' in source
+    assert 'schedule="30 18 * * 1-5"' in source
+    assert 'tz="America/New_York"' in source
+    assert "run_market_source(symbol, run_at=dag_run.run_after)" in source
+    assert "run_quality_monitoring(as_of=dag_run.run_after.date())" in source
+    assert source.count("dag_run.run_after") == 2
+    assert "INITIAL_SEC_COMPANIES" in source
+    assert "run_dbt_models" in source
+    assert "run_dbt_tests" in source
+    assert "ensure_source_schema_ready" in source
+    assert "run_dbt_seed" not in source
+    assert "run_sec_source" not in source
+    assert "run_fred_source" not in source
+    assert "INITIAL_FRED_SERIES_IDS" not in source
+    assert "HISTORICAL_SEC_REGISTRANTS" not in source
+    for prohibited_timestamp_call in (
+        "datetime.now",
+        "datetime.utcnow",
+        "date.today",
+        "pendulum.now",
+    ):
+        assert prohibited_timestamp_call not in source
+    for task_id in ("source_schema", "dbt_run", "dbt_test", "quality_monitoring"):
+        assert f'task_id="{task_id}"' in source
+    assert "source_schema_result >> market_task_result" in source
+    assert "market_task_result >> dbt_run_result" in source
+    assert "dbt_run_result >> dbt_test_result >> quality_monitoring_result" in source
+
+    dag_decorator = next(
+        decorator
+        for node in ast.walk(tree)
+        if isinstance(node, ast.FunctionDef) and node.name == "finstream_market_daily"
+        for decorator in node.decorator_list
+        if isinstance(decorator, ast.Call)
+        and isinstance(decorator.func, ast.Name)
+        and decorator.func.id == "dag"
+    )
+    keywords = {keyword.arg: keyword.value for keyword in dag_decorator.keywords}
+    assert isinstance(keywords["dag_id"], ast.Constant)
+    assert keywords["dag_id"].value == "finstream_market_daily"
+    assert isinstance(keywords["schedule"], ast.Constant)
+    assert keywords["schedule"].value == "30 18 * * 1-5"
+    assert isinstance(keywords["catchup"], ast.Constant)
+    assert keywords["catchup"].value is False
+    assert isinstance(keywords["max_active_runs"], ast.Constant)
+    assert keywords["max_active_runs"].value == 1
+    start_date = keywords["start_date"]
+    assert isinstance(start_date, ast.Call)
+    assert isinstance(start_date.func, ast.Attribute)
+    assert isinstance(start_date.func.value, ast.Name)
+    assert start_date.func.value.id == "pendulum"
+    assert start_date.func.attr == "datetime"
+    timezone_keyword = next(keyword for keyword in start_date.keywords if keyword.arg == "tz")
+    assert isinstance(timezone_keyword.value, ast.Constant)
+    assert timezone_keyword.value.value == "America/New_York"
+
+    assignments = _module_assignments(tree)
+    assert isinstance(assignments["SOURCE_SCHEMA_RETRIES"], ast.Constant)
+    assert assignments["SOURCE_SCHEMA_RETRIES"].value == 1
+    _assert_timedelta_minutes(assignments["SOURCE_SCHEMA_RETRY_DELAY"], 1)
+    assert isinstance(assignments["SOURCE_RETRIES"], ast.Constant)
+    assert assignments["SOURCE_RETRIES"].value == 2
+    _assert_timedelta_minutes(assignments["SOURCE_RETRY_DELAY"], 5)
+    assert isinstance(assignments["STANDARD_RETRIES"], ast.Constant)
+    assert assignments["STANDARD_RETRIES"].value == 1
+    _assert_timedelta_minutes(assignments["STANDARD_RETRY_DELAY"], 1)
+
+    task_keywords = _task_decorator_keywords(tree)
+    assert isinstance(task_keywords["market_source_task"]["retries"], ast.Name)
+    assert task_keywords["market_source_task"]["retries"].id == "SOURCE_RETRIES"
+    assert isinstance(task_keywords["market_source_task"]["retry_delay"], ast.Name)
+    assert task_keywords["market_source_task"]["retry_delay"].id == "SOURCE_RETRY_DELAY"
+    expected_standard_tasks = {
+        "source_schema_task": ("SOURCE_SCHEMA_RETRIES", "SOURCE_SCHEMA_RETRY_DELAY"),
+        "dbt_run_task": ("STANDARD_RETRIES", "STANDARD_RETRY_DELAY"),
+        "quality_monitoring_task": ("STANDARD_RETRIES", "STANDARD_RETRY_DELAY"),
+    }
+    for task_name, (retries_name, delay_name) in expected_standard_tasks.items():
+        assert isinstance(task_keywords[task_name]["retries"], ast.Name)
+        assert task_keywords[task_name]["retries"].id == retries_name
+        assert isinstance(task_keywords[task_name]["retry_delay"], ast.Name)
+        assert task_keywords[task_name]["retry_delay"].id == delay_name
+    assert isinstance(task_keywords["dbt_test_task"]["retries"], ast.Constant)
+    assert task_keywords["dbt_test_task"]["retries"].value == 0
+    assert "retry_delay" not in task_keywords["dbt_test_task"]
+
+
+def test_market_daily_task_id_convention_covers_each_configured_company() -> None:
+    source = MARKET_DAILY_DAG_PATH.read_text(encoding="utf-8")
+
+    assert len(_market_daily_source_task_ids()) == len(INITIAL_SEC_COMPANIES)
+    assert len(_market_daily_task_ids()) == len(INITIAL_SEC_COMPANIES) + 4
+    assert "task_id=f\"market_{company.ticker.lower()}\"" in source
+
+
 @pytest.mark.airflow
 def test_dag_import_and_task_structure_when_airflow_is_installed() -> None:
     pytest.importorskip("airflow")
@@ -279,6 +399,59 @@ def test_dag_import_and_task_structure_when_airflow_is_installed() -> None:
 
     quality_monitoring = dag.get_task("quality_monitoring")
     assert quality_monitoring.upstream_task_ids == {"dbt_run"}
+    assert not quality_monitoring.downstream_task_ids
+    assert quality_monitoring.retries == 1
+    assert quality_monitoring.retry_delay == timedelta(minutes=1)
+
+
+@pytest.mark.airflow
+def test_market_daily_dag_import_and_task_structure_when_airflow_is_installed() -> None:
+    pytest.importorskip("airflow")
+    spec = importlib.util.spec_from_file_location(
+        "finstream_market_daily", MARKET_DAILY_DAG_PATH
+    )
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    dag = module.finstream_market_daily_dag
+    expected_task_ids = _market_daily_task_ids()
+    source_task_ids = _market_daily_source_task_ids()
+
+    assert dag.dag_id == "finstream_market_daily"
+    assert dag.schedule == "30 18 * * 1-5"
+    assert dag.catchup is False
+    assert dag.max_active_runs == 1
+    assert dag.timezone.name == "America/New_York"
+    assert set(dag.task_ids) == expected_task_ids
+    assert len(dag.task_ids) == len(expected_task_ids)
+    assert not ({"sec_", "fred_"} & {task_id[:4] for task_id in dag.task_ids})
+
+    source_schema = dag.get_task("source_schema")
+    assert not source_schema.upstream_task_ids
+    assert source_schema.downstream_task_ids == source_task_ids
+    assert source_schema.retries == 1
+    assert source_schema.retry_delay == timedelta(minutes=1)
+    for task_id in source_task_ids:
+        task_instance = dag.get_task(task_id)
+        assert task_instance.upstream_task_ids == {"source_schema"}
+        assert task_instance.downstream_task_ids == {"dbt_run"}
+        assert task_instance.retries == 2
+        assert task_instance.retry_delay == timedelta(minutes=5)
+
+    dbt_run = dag.get_task("dbt_run")
+    assert dbt_run.upstream_task_ids == source_task_ids
+    assert dbt_run.downstream_task_ids == {"dbt_test"}
+    assert dbt_run.retries == 1
+    assert dbt_run.retry_delay == timedelta(minutes=1)
+
+    dbt_test = dag.get_task("dbt_test")
+    assert dbt_test.upstream_task_ids == {"dbt_run"}
+    assert dbt_test.downstream_task_ids == {"quality_monitoring"}
+    assert dbt_test.retries == 0
+
+    quality_monitoring = dag.get_task("quality_monitoring")
+    assert quality_monitoring.upstream_task_ids == {"dbt_test"}
     assert not quality_monitoring.downstream_task_ids
     assert quality_monitoring.retries == 1
     assert quality_monitoring.retry_delay == timedelta(minutes=1)
