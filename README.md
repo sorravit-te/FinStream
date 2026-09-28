@@ -24,29 +24,33 @@ GDPC1, DGS10
 
 ## Architecture
 
-```mermaid
-flowchart LR
-    A[SEC EDGAR] --> D[Python ingestion]
-    B[Twelve Data] --> D
-    C[FRED] --> D
-    D --> E[Bronze JSON and Parquet]
-    E --> F[PostgreSQL source_data]
-    F --> G[dbt Silver and Gold]
-    G --> H[Analytics marts]
-    H --> I[Power BI]
-```
+[![FinStream architecture](docs/assets/finstream-architecture.png)](docs/assets/finstream-architecture.png)
 
 ## Highlights
 
 - Immutable Bronze artifacts with source, dataset, run, and row provenance.
 - PostgreSQL constraints and replay checks preserve valid source revisions.
 - dbt models and tests produce documented Silver, Gold, and mart relations.
-- Docker Compose runs PostgreSQL and Airflow locally; `finstream_v1_pipeline`
-  is manually triggered.
+- Docker Compose runs PostgreSQL and Airflow locally. Airflow provides a manual
+  full pipeline and a weekday incremental Market pipeline.
 - GitHub Actions validates Python tests, PostgreSQL integration, and dbt checks
   on pushes to main and pull requests.
 - Read-only operational status reports database, provenance, Bronze, analytics,
   and informational recency state.
+
+## Automation
+
+| Workflow | Schedule | Scope |
+| --- | --- | --- |
+| `finstream_market_daily` | Monday-Friday, 18:30 `America/New_York` | Market-only incremental ingestion, followed by dbt run, dbt tests, and quality monitoring. |
+| `finstream_v1_pipeline` | Manual trigger | Complete Market, SEC, and FRED workflow. |
+| Power BI scheduled refresh | Tuesday-Saturday, 08:00 ICT (UTC+7) | Scheduled after the expected prior U.S. trading-day pipeline completion, with buffer. |
+
+The daily Market DAG uses `catchup=False`: missed Airflow runs are not
+recreated. Instead, ingestion starts from each symbol's latest stored trading
+date minus three calendar days and requests through the provider's latest date,
+recovering missing observations and recent revisions within the overlap window.
+SEC and FRED are not fetched by the daily DAG.
 
 ## Quick Start
 

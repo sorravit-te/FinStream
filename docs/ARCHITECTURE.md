@@ -1,60 +1,106 @@
-# Architecture
+# FinStream Architecture
 
-FinStream is a scheduled batch system. Python retrieves and validates provider
-responses, Bronze preserves immutable source artifacts, PostgreSQL stores
-source-aligned rows and provenance, dbt produces analytics relations, Airflow
-coordinates manual and scheduled batch runs, and Power BI consumes marts.
+## Overview
 
-```mermaid
-flowchart LR
-    P[SEC EDGAR / Twelve Data / FRED] --> I[Python ingestion]
-    I --> B[Bronze: JSON + Parquet]
-    B --> S[PostgreSQL source_data]
-    S --> D[dbt: Silver + Gold]
-    D --> M[Analytics marts]
-    M --> BI[Power BI]
-```
+FinStream is a local batch data platform for Twelve Data market prices, SEC
+EDGAR filings, and FRED macroeconomic series. Python validates and captures
+source data, PostgreSQL preserves source rows and provenance, dbt builds tested
+analytical layers, Airflow orchestrates workflows, and Power BI presents the
+approved marts.
 
-## Components
+Docker contains the local processing runtime. Provider APIs, the Standard
+On-premises Data Gateway, and Power BI remain outside that boundary.
 
-| Component | Responsibility |
+## Architecture Diagram
+
+![FinStream architecture](assets/finstream-architecture.png)
+
+Solid arrows show data flow. Dashed arrows show Airflow control: Airflow
+triggers ingestion and dbt, but is not itself a data layer.
+
+## Data Flow & Layers
+
+The lineage is external sources -> Python ingestion -> Bronze -> PostgreSQL
+source tables -> dbt Silver -> dbt Gold -> Power BI. dbt materializes and tests
+both the Silver and Gold transformations.
+
+### Bronze
+
+Bronze stores immutable source-aligned JSON and typed Parquet for each
+ingestion run. The artifacts support reproducibility, recovery, replay, and
+traceability; Bronze is not an analytical layer.
+
+### PostgreSQL Source Layer
+
+The `source_data` schema stores validated source rows and ingestion provenance.
+The full `(source, dataset, run_id)` identity, ingestion timestamp, and source
+row number preserve exact-run traceability and replay verification. PostgreSQL
+also hosts dbt outputs, but PostgreSQL itself is not Silver.
+
+### Silver
+
+Silver is the logical dbt staging and standardization layer. Typed staging
+models normalize source representations, apply mappings, and establish tested
+keys, relationships, and grains. This terminology does not imply a physical
+PostgreSQL schema named `silver`.
+
+### Gold
+
+Gold contains business-ready dimensions, facts, and the marts consumed by
+Power BI:
+
+| Mart | Purpose |
 | --- | --- |
-| Python | Provider access, parsing, validation, Bronze persistence, and source loading. |
-| Bronze | Immutable Raw JSON and typed Parquet artifacts for an ingestion run. |
-| PostgreSQL | Source rows, ingestion provenance, constraints, replay verification, and analytics relations. |
-| dbt | Source declarations, transformations, tests, seeds, and mart lineage. |
-| Airflow | Manual full-pipeline and scheduled Market-only batch execution of the existing runtime adapters. |
-| Docker Compose | Local PostgreSQL and Airflow services. |
-| Operational status | Read-only inspection of database, provenance, Bronze, analytics, and recency state. |
-| Power BI | Semantic model and dashboards over approved analytics marts. |
+| `analytics.mart_company_daily_performance` | Daily company market performance. |
+| `analytics.mart_company_financial_growth` | Reported financial values and comparable-period growth. |
+| `analytics.mart_market_macro` | Market observations aligned with macro reference dates. |
 
-## Runtime Boundaries
+## Orchestration & Incremental Processing
 
-Compose runs `postgres`, `airflow-init`, `airflow-api-server`,
-`airflow-scheduler`, and `airflow-dag-processor`. The DAG ID
-`finstream_v1_pipeline` is the manual full-pipeline DAG. It has no schedule and
-does not run merely because Compose starts; it continues to orchestrate Market,
-SEC, FRED, dbt seed, dbt run, dbt test, and quality monitoring.
+Airflow orchestrates source-schema setup, ingestion, dbt transformations and
+tests, and quality monitoring.
 
-`finstream_market_daily` is a separate weekday Market-only DAG. It runs at
-18:30 America/New_York, after the normal 16:00 US market close, with
-`catchup=False` and one active run at a time. It schedules batch ingestion, not
-real-time streaming: it runs source-schema preparation, configured Market
-ticker ingestion, dbt run, dbt test, and quality monitoring. SEC and FRED are
-not fetched, and static dbt seeds are not refreshed by this weekday DAG. The
-weekday schedule does not use an exchange-holiday calendar; the established
-incremental/idempotent Market behavior handles days with no new trading date.
+| DAG | Behavior |
+| --- | --- |
+| `finstream_v1_pipeline` | Manually triggered full Market, SEC, and FRED workflow, including dbt seed/run/test and quality monitoring. |
+| `finstream_market_daily` | Market-only pipeline at 18:30 `America/New_York`, Monday-Friday; `catchup=False` and `max_active_runs=1`. |
 
-Docker, Airflow, and PostgreSQL must be running locally when the schedule is
-due. Step 16.1 does not implement Power BI automatic refresh.
+- **Market:** Each symbol starts from its latest stored `trading_date` minus
+  three calendar days and requests through the provider's latest date. The
+  overlap supports recovery and recent revisions within that overlap window;
+  an explicit supported date range takes precedence.
+- **FRED:** Observations start from each series' maximum stored observation date
+  minus 365 days. Metadata remains a full refresh.
+- **SEC:** Submissions and Company Facts use current/full retrieval.
 
-The operational-status command issues PostgreSQL `SELECT` queries and local
-filesystem reads only. dbt tests remain the analytical-quality gate; Airflow
-logs provide task-level diagnostics. GitHub Actions is configured for automated
-checks without provider credentials or Compose startup.
+Missed daily Airflow runs are not recreated. On the next execution, the Market
+incremental window recovers missing provider observations. The daily DAG does
+not fetch SEC or FRED.
 
-## Scope
+## Data Quality
 
-FinStream is batch-oriented. It does not provide real-time ingestion, streaming,
-trading, cloud deployment, external alerting, freshness SLAs, anomaly detection,
-or release-aware macroeconomic vintage reconstruction.
+| Boundary | Responsibility |
+| --- | --- |
+| Source/Python | Provider shape, identities, types, dates, and source invariants. |
+| Bronze | Immutable artifacts, deterministic counts, and recovery integrity. |
+| PostgreSQL | Provenance, per-run constraints, and replay verification. |
+| dbt | Analytical grains, keys, relationships, mappings, and mart contracts. |
+| Monitoring | Read-only recency and run-count observations. |
+
+Source contract violations stop ingestion and dbt test failures stop analytical
+validation. Recency and run counts are informational unless evaluation fails.
+
+## Analytics & Power BI
+
+Power BI is FinStream's visualization layer. The PBIP project connects to
+`PostgreSQL.Database("localhost:5433", "finstream")` and contains **Market
+Performance**, **Company Financial**, and **Market & Macro** pages. Power BI
+Service refresh uses a Standard On-premises Data Gateway and is scheduled
+Tuesday-Saturday at 08:00 ICT (UTC+7), after the expected prior U.S. market
+pipeline completion, with buffer.
+
+`mart_market_macro` is current-vintage and aligned by observation/reference
+date. It is not publication-time or release-time aware, ALFRED-vintage aware,
+or a historical no-lookahead reconstruction. Repeated lower-frequency values
+across later trading dates are reference-date alignment, not interpolation or
+imputation.
